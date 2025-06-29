@@ -90,10 +90,6 @@ class TextExtractionAgent(BaseAgent):
             name="Text Extraction Agent",
         )
 
-    @property
-    def name(self):
-        return self.agent_name
-
     def invoke(self, query, sessionId) -> str:
         config = {'configurable': {'thread_id': sessionId}, 'recursion_limit': 50}
         response = self.graph.invoke({'messages': [('user', query)]}, config)
@@ -118,39 +114,6 @@ class TextExtractionAgent(BaseAgent):
                     }
             yield get_agent_response(self.graph, message, config)
 
-    async def ainvoke(self, input_data, config=None):
-        """Required method for langgraph-supervisor compatibility"""
-        if config is None:
-            config = {}
-            
-        # Extract the message content from the input data
-        messages = input_data.get("messages", [])
-        if messages and len(messages) > 0:
-            last_message = messages[-1]
-            
-            # Handle different message types
-            if hasattr(last_message, 'content'):
-                query = last_message.content
-            elif isinstance(last_message, dict) and 'content' in last_message:
-                query = last_message['content']
-            elif isinstance(last_message, tuple) and len(last_message) == 2:
-                # Handle tuple format (role, content)
-                query = last_message[1]
-            else:
-                query = str(last_message)
-                
-            session_id = config.get("configurable", {}).get("thread_id", "default")
-            
-            # Use the existing invoke method
-            result = self.invoke(query, session_id)
-            
-            # Make sure result is a string
-            if isinstance(result, dict):
-                result = str(result)
-                
-            # Return properly formatted AIMessage
-            from langchain_core.messages import AIMessage
-            return {"messages": [AIMessage(content=result)]}
 
 
 # ---------------------- RUN TEST ----------------------
@@ -158,5 +121,5 @@ class TextExtractionAgent(BaseAgent):
 
 if __name__ == "__main__":
     agent = TextExtractionAgent()
-    result = agent.invoke(query = "Extract text from the file at path C:/Users/dhuu3/Desktop/local-classify-docs-ai-agent/data/project-final-DV.pdf", sessionId = "123")
+    result = agent.invoke(query = "Extract text from the file at path C:/Users/dhuu3/Desktop/Chatbot_MCP/data/project-dv.docx", sessionId = "123")
     print(result)

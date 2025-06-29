@@ -19,3 +19,5 @@ openpyxl
 a2a-sdk
 streamlit
 langgraph-supervisor
+gradio
+uuid

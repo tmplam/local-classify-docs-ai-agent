@@ -14,6 +14,7 @@ from typing import Any, AsyncIterable, Dict
 from langchain_core.messages import AIMessage, HumanMessage
 
 
+
 class FilesystemAgent(BaseAgent):
     def __init__(self, graph):
         super().__init__(
@@ -28,23 +29,32 @@ class FilesystemAgent(BaseAgent):
         return self.agent_name
 
     @classmethod
-    async def create(cls):
-        """Create FilesystemAgent with MCP client and tools"""
+    async def create(cls, mcp_client=None):
+        """Create FilesystemAgent with MCP client and tools
+        
+        Args:
+            mcp_client: Optional MCP client to use. If None, a new client will be created.
+        """
         try:
-            # Setup MCP server to get file tools
-            client = MultiServerMCPClient({
-                "document_search": {
-                    "command": "cmd",
-                    "args": [
-                        "/c",
-                        "npx",
-                        "-y",
-                        "@modelcontextprotocol/server-filesystem",
-                        "C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data",
-                    ],
-                    "transport": "stdio",
-                }
-            })
+        
+            if mcp_client is None:
+                print("Creating new MCP client for FilesystemAgent")
+                client = MultiServerMCPClient({
+                    "document_search": {
+                        "command": "cmd",
+                        "args": [
+                            "/c",
+                            "npx",
+                            "-y",
+                            "@modelcontextprotocol/server-filesystem",
+                            "C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data",
+                        ],
+                        "transport": "stdio",
+                    }
+                })
+            else:
+                print("Using provided MCP client for FilesystemAgent")
+                client = mcp_client
             
             # MemorySaver
             memory = MemorySaver()
@@ -198,7 +208,7 @@ async def main():
     """Test function for the FilesystemAgent"""
     try:
         agent = await FilesystemAgent.create()
-        result = await agent.run("Tìm kiếm các file liên quan tới project-final", session_id="123")
+        result = await agent.run("Tìm kiếm các file liên quan tới llm", session_id="123")
         print("Result:", result)
     except Exception as e:
         print(f"Error in main: {e}")
