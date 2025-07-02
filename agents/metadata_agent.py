@@ -238,16 +238,33 @@ def create_metadata(text: str, file_name: str, label: str):
     Returns:
         dict: Metadata dictionary with document information
     """
+    # Clean up the label if it contains a file path
+    if ':' in label:
+        label = label.split(':')[-1].strip()
+    
+    # Ensure we have a valid label
+    if not label or label.lower() in ["không xác định", "chưa phân loại", "không có phân loại"]:
+        label = "Chưa phân loại"
+    
+    # Clean file name
+    file_name = str(file_name).strip()
+    if not file_name or file_name.lower() == 'unknown_file':
+        file_name = f"document_{int(datetime.now().timestamp())}"
+    
+    # Create clean metadata structure
     metadata = {
-        "total_characters": len(text),
-        "creation_date": _format_file_timestamp(
-            timestamp=datetime.now().timestamp(), include_time=True
-        ),
-        "file_name": str(file_name),
+        "file_name": file_name,
         "label": label,
-        "content": text[:500] if len(text) > 500 else text,
+        "content": text[:500] if text and len(text) > 500 else (text or ""),
+        "total_characters": float(len(text)) if text else 0.0,
+        "creation_date": _format_file_timestamp(
+            timestamp=datetime.now().timestamp(), 
+            include_time=True
+        )
     }
-    return metadata
+    
+    print(f"✅ Created metadata for {file_name} with label: {label}")
+    return {"create_metadata_response": metadata}
 
 @tool
 def save_metadata_to_mcp(metadata: dict):
@@ -260,20 +277,37 @@ def save_metadata_to_mcp(metadata: dict):
     Returns:
         dict: Result of the save operation
     """
+    if not mcp_connection:
+        return {"error": "MCP connection not initialized. Please initialize MCP first."}
+    
     try:
-        # Extract required fields from metadata
-        filename = metadata.get("file_name", "unknown_file")
-        label = metadata.get("label", "unclassified")
-        content = metadata.get("content", "")
+        # Extract metadata from different possible structures
+        if 'create_metadata_response' in metadata:
+            # If it's a direct response from create_metadata
+            create_resp = metadata['create_metadata_response']
+            # Handle nested create_metadata_response if present
+            if 'create_metadata_response' in create_resp:
+                create_resp = create_resp['create_metadata_response']
+                
+            filename = create_resp.get('file_name', create_resp.get('filename', 'unknown_file'))
+            label = create_resp.get('label', 'unclassified')
+            content = create_resp.get('content', '')
+            
+            # Prepare clean additional metadata without duplicating fields
+            additional_metadata = {k: v for k, v in create_resp.items() 
+                                if k not in ['file_name', 'filename', 'label', 'content']}
+            
+            print(f"📝 Preparing to save metadata for {filename} with label {label}")
+            print(f"📄 Content length: {len(content) if content else 0} chars")
+        else:
+            # If it's regular metadata
+            filename = metadata.get('file_name', metadata.get('filename', 'unknown_file'))
+            label = metadata.get('label', 'unclassified')
+            content = metadata.get('content', '')
+            additional_metadata = metadata
         
         # Debug output
         print(f"💾 Saving metadata for file: {filename}, label: {label}")
-        
-        # Remove these fields from additional_metadata to avoid duplication
-        additional_metadata = metadata.copy()
-        for key in ["file_name", "label", "content"]:
-            if key in additional_metadata:
-                del additional_metadata[key]
         
         # Call MCP server tool synchronously
         result = mcp_connection.call_tool_sync("save_metadata_to_json", {
@@ -585,22 +619,112 @@ class MetadataAgent(BaseAgent):
                 return False
         return self.mcp_initialized
 
-    def invoke(self, query, sessionId) -> str:
-        """Invoke the agent synchronously with better error handling."""
+    def invoke(self, query, sessionId, metadata=None) -> str:
+        """Invoke the agent synchronously with better error handling.
+        
+        Args:
+            query: The user query or instruction
+            sessionId: Session ID for conversation tracking
+            metadata: Optional metadata dictionary containing file info, content, etc.
+            
+        Returns:
+            str: The agent's response
+        """
         # Initialize MCP if not done
         if not self.mcp_initialized:
             success = self.initialize_mcp_sync()
             if not success:
                 return "❌ Failed to initialize MCP connection. Please check the server."
-            
-        config = {'configurable': {'thread_id': sessionId}, 'recursion_limit': 50}
+        
+        # Debug log for metadata
+        if metadata:
+            print(f"\n📋 Received metadata in invoke:")
+            print(f"- File name: {metadata.get('file_name', 'N/A')}")
+            print(f"- Label: {metadata.get('label', 'N/A')}")
+            content_len = len(metadata.get('content', '')) if metadata.get('content') else 0
+            print(f"- Content length: {content_len} characters")
+        else:
+            print("⚠️ No metadata received in invoke method")
+        
+        # Prepare the input message
+        input_data = {
+            'messages': [('user', query)]
+        }
+    
+        # Add metadata to the query if available
+        if metadata and metadata.get('content'):
+            # Create metadata directly in the invoke method
+            try:
+                # Call create_metadata directly
+                file_name = metadata.get('file_name', 'unknown_file')
+                label = metadata.get('label', 'Chưa phân loại')
+                content = metadata.get('content', '')
+                
+                print(f"✅ Directly creating metadata for {file_name} with label: {label}")
+                print(f"Content length: {len(content)} characters")
+                
+                # Create metadata dictionary
+                from datetime import datetime
+                metadata_dict = {
+                    "file_name": file_name,
+                    "label": label,
+                    "content": content[:500] if content and len(content) > 500 else (content or ""),
+                    "total_characters": float(len(content)) if content else 0.0,
+                    "creation_date": _format_file_timestamp(
+                        timestamp=datetime.now().timestamp(), 
+                        include_time=True
+                    )
+                }
+                
+                # Save metadata to MCP
+                if mcp_connection:
+                    result = mcp_connection.call_tool_sync("save_metadata_to_json", {
+                        "filename": file_name,
+                        "label": label,
+                        "content": content,
+                        "additional_metadata": {k: v for k, v in metadata_dict.items() 
+                                            if k not in ['file_name', 'label', 'content']}
+                    })
+                    
+                    # Extract metadata ID
+                    metadata_id = None
+                    if isinstance(result, dict):
+                        if 'metadata' in result and 'id' in result['metadata']:
+                            metadata_id = result['metadata']['id']
+                        elif 'id' in result:
+                            metadata_id = result['id']
+                    
+                    if metadata_id:
+                        print(f"✅ Metadata saved with ID: {metadata_id}")
+                        return f"✅ Đã tạo và lưu metadata thành công cho file {file_name}. Metadata ID: {metadata_id}"
+            except Exception as e:
+                import traceback
+                print(f"❌ Error creating metadata directly: {e}")
+                print(traceback.format_exc())
+        
+        # If direct creation failed or wasn't attempted, continue with normal flow
+        config = {
+            'configurable': {
+                'thread_id': sessionId,
+                'metadata': metadata  # Include in config for tool access
+            },
+            'recursion_limit': 50
+        }
+        
         try:
-            response = self.graph.invoke({'messages': [('user', query)]}, config)
-            last_message = response['messages'][-1]
+            # Pass both input_data and config to the graph
+            response = self.graph.invoke(input_data, config)
             
-            if isinstance(last_message, AIMessage):
-                content = last_message.content
-            elif hasattr(last_message, 'content'):
+            # Extract the last message from the response
+            if isinstance(response, dict) and 'messages' in response:
+                last_message = response['messages'][-1]
+            elif isinstance(response, (list, tuple)) and len(response) > 0:
+                last_message = response[-1]
+            else:
+                last_message = response
+            
+            # Extract content from the message
+            if hasattr(last_message, 'content'):
                 content = last_message.content
             else:
                 content = str(last_message)

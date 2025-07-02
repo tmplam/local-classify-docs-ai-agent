@@ -2,7 +2,6 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.llm import gemini
-from config.llm import ollama_chat_model, ollama_model
 from config.prompt import file_classification_template
 from langchain.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -119,5 +118,3 @@ if __name__ == "__main__":
     agent = FileClassificationAgent()
     result = agent.invoke(query = "Phân loại tệp theo nội dung: 'Đây là một bài giảng về lịch sử Việt Nam thời kỳ phong kiến.'", sessionId = "123")
     print(result)
-
-

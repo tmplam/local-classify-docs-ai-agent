@@ -14,6 +14,8 @@ from contextlib import asynccontextmanager
 import atexit
 import gc
 import warnings
+from dotenv import load_dotenv
+load_dotenv()
 
 # CRITICAL: Fix for Python 3.13 compatibility - Apply BEFORE any other imports
 # This must be the FIRST thing we do to avoid the inspect.cleandoc error

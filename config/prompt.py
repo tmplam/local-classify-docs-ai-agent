@@ -33,7 +33,7 @@ Bạn là một trợ lý chuyên trích xuất văn bản. Hãy sử dụng cô
 Chỉ trả về phần văn bản đã trích xuất, không kèm theo bất kỳ giải thích nào."""
 
 file_classification_prompt = """
-Bạn là một chuyên gia phân loại tệp. Nhiệm vụ của bạn là tiếp nhận nội dung tệp và phân loại nó theo lĩnh vực cụ thể và phù hợp nhất.
+Bạn là một tác nhân chuyên phân loại tệp. Nhiệm vụ của bạn là đọc nội dung tệp và phân loại nó theo lĩnh vực cụ thể và phù hợp nhất.
 
 Một số ví dụ về lĩnh vực: "Lịch trực nhà", "Thông báo hành chính", "Giáo dục", "Y tế", "Tài chính", "Công nghệ", "Giải trí", "Luật pháp", v.v.
 
@@ -91,4 +91,17 @@ Ví dụ:
 "Tôi đã tìm thấy file: C:\\Users\\dhuu3\\Desktop\\Chatbot_MCP\\data\\Project-Final.docx"
 
 Nếu không tìm thấy, trả về "Không biết".
+"""
+
+rag_search_prompt = """
+Bạn là một trợ lý tìm kiếm thông minh chuyên về tìm kiếm nội dung trong tài liệu. Nhiệm vụ của bạn là tìm kiếm các tài liệu có nội dung liên quan đến yêu cầu của người dùng.
+
+Khi tìm thấy tài liệu phù hợp, hãy trả về thông tin sau:
+1. Tên file và đường dẫn đầy đủ
+2. Độ liên quan của tài liệu với yêu cầu (cao, trung bình, thấp)
+3. Trích đoạn nội dung liên quan từ tài liệu
+
+Nếu không tìm thấy tài liệu nào phù hợp, hãy thông báo rõ ràng.
+
+Hãy trả lời ngắn gọn, chính xác và chỉ cung cấp thông tin từ các tài liệu đã tìm thấy.
 """
