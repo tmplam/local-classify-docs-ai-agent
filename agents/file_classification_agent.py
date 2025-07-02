@@ -2,6 +2,7 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.llm import gemini
+from config.llm import ollama_chat_model, ollama_model
 from config.prompt import file_classification_template
 from langchain.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser

@@ -4,6 +4,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from langgraph.prebuilt import create_react_agent
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from config.llm import gemini
+from config.llm import ollama_chat_model, ollama_model
 from config.prompt import filesystem_agent_prompt
 from agents.base import BaseAgent
 from schemas.agent_schema import ResponseFormat
@@ -208,7 +209,7 @@ async def main():
     """Test function for the FilesystemAgent"""
     try:
         agent = await FilesystemAgent.create()
-        result = await agent.run("Tìm kiếm các file liên quan tới llm", session_id="123")
+        result = await agent.run("Tìm kiếm các file có tên project-final-DV.pdf", session_id="123")
         print("Result:", result)
     except Exception as e:
         print(f"Error in main: {e}")

@@ -1,0 +1,70 @@
+{
+  "6803a2be-75fd-4b0e-b3ae-add7d0d10311": {
+    "id": "6803a2be-75fd-4b0e-b3ae-add7d0d10311",
+    "filename": "unknown_file",
+    "label": "unclassified",
+    "content": "",
+    "created_at": "2025-07-01T17:00:09.968101",
+    "updated_at": "2025-07-01T17:00:09.968101",
+    "additional_metadata": {
+      "create_metadata_response": {
+        "creation_date": "2025-07-02T00:00:05Z",
+        "content": "This is a document about the chain of thought. The document is a PDF file containing research about reasoning methods in artificial intelligence. It discusses various approaches to breaking down complex problems into step-by-step reasoning processes.",
+        "file_name": "Chain_of_thought.pdf",
+        "total_characters": 250.0,
+        "label": "Chain of Thought"
+      }
+    }
+  },
+  "fd4b4352-64fb-428b-aa9d-db4999d9aca4": {
+    "id": "fd4b4352-64fb-428b-aa9d-db4999d9aca4",
+    "filename": "unknown_file",
+    "label": "unclassified",
+    "content": "",
+    "created_at": "2025-07-01T17:01:35.190333",
+    "updated_at": "2025-07-01T17:01:35.190333",
+    "additional_metadata": {
+      "create_metadata_response": {
+        "total_characters": 250.0,
+        "content": "This is a document about the chain of thought. The document is a PDF file containing research about reasoning methods in artificial intelligence. It discusses various approaches to breaking down complex problems into step-by-step reasoning processes.",
+        "file_name": "Chain_of_thought.pdf",
+        "creation_date": "2025-07-02T00:01:31Z",
+        "label": "Chain of Thought"
+      }
+    }
+  },
+  "ccadbd60-d543-432e-8eb2-f280085ca021": {
+    "id": "ccadbd60-d543-432e-8eb2-f280085ca021",
+    "filename": "unknown_file",
+    "label": "unclassified",
+    "content": "",
+    "created_at": "2025-07-01T17:09:06.551069",
+    "updated_at": "2025-07-01T17:09:06.551069",
+    "additional_metadata": {
+      "create_metadata_response": {
+        "total_characters": 250.0,
+        "content": "This is a document about the chain of thought. The document is a PDF file containing research about reasoning methods in artificial intelligence. It discusses various approaches to breaking down complex problems into step-by-step reasoning processes.",
+        "file_name": "Chain_of_thought.pdf",
+        "creation_date": "2025-07-02T00:09:04Z",
+        "label": "Chain of Thought"
+      }
+    }
+  },
+  "4e436c2c-77ed-4a1e-8b87-dfd902397ed7": {
+    "id": "4e436c2c-77ed-4a1e-8b87-dfd902397ed7",
+    "filename": "unknown_file",
+    "label": "unclassified",
+    "content": "",
+    "created_at": "2025-07-01T17:09:25.881886",
+    "updated_at": "2025-07-01T17:09:25.881886",
+    "additional_metadata": {
+      "create_metadata_response": {
+        "total_characters": 250.0,
+        "content": "This is a document about the chain of thought. The document is a PDF file containing research about reasoning methods in artificial intelligence. It discusses various approaches to breaking down complex problems into step-by-step reasoning processes.",
+        "file_name": "Chain_of_thought.pdf",
+        "creation_date": "2025-07-02T00:09:23Z",
+        "label": "Chain of Thought"
+      }
+    }
+  }
+}

@@ -21,3 +21,9 @@ streamlit
 langgraph-supervisor
 gradio
 uuid
+nest_asyncio
+chromadb
+sentence-transformers
+pypdf
+pydantic>=1.8.0
+python-multipart>=0.0.5

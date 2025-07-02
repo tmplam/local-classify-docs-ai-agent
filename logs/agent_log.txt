@@ -1,2 +1,51 @@
 === Log started at 2025-06-29 15:49:28 ===
 
+2025-06-29 15:49:52 - INFO - Multi-agent graph built successfully
+2025-06-29 15:50:23 - INFO - Kế hoạch agent: ['filesystem', 'metadata', 'text_extraction']
+2025-06-29 15:50:23 - INFO - Kế hoạch agent: ['filesystem', 'metadata', 'text_extraction']
+2025-06-29 15:50:23 - INFO - Running agent: filesystem
+2025-06-29 15:50:23 - INFO - Running FilesystemAgent with query: Tìm file liên quan đến project-final sau đó trích xuất thông tin file
+2025-06-29 15:50:23 - INFO - Waiting for FilesystemAgent to complete...
+2025-06-29 15:50:38 - INFO - FilesystemAgent completed
+2025-06-29 15:50:39 - INFO - Running agent: metadata
+2025-06-29 15:50:39 - INFO - Running MetadataAgent with query: Tìm file liên quan đến project-final sau đó trích xuất thông tin file
+2025-06-29 15:50:39 - INFO - Waiting for MetadataAgent to complete...
+2025-06-29 15:50:41 - INFO - MetadataAgent completed
+2025-06-29 15:50:42 - INFO - Running agent: text_extraction
+2025-06-29 15:50:42 - INFO - Checking message for file path: [Metadata Agent]: 
+isLink: false
+[Text Extraction Agent]: Đã trích xuất nội dung văn bản từ file /Us...
+2025-06-29 15:50:42 - INFO - Checking message for file path: [Filesystem Agent]: Tôi đã tìm thấy file: /Users/dhuu3/Desktop/local-classify-docs-ai-agent/data/pro...
+2025-06-29 15:50:42 - INFO - Found filesystem agent message with standard format
+2025-06-29 15:50:42 - INFO - Checking message for file path: Kế hoạch của tôi là: Đầu tiên, sử dụng agent `filesystem` để tìm kiếm các file liên quan đến "projec...
+2025-06-29 15:50:42 - INFO - WARNING: No file path found! Running TextExtractionAgent with original query: Tìm file liên quan đến project-final sau đó trích xuất thông tin file
+2025-06-29 15:50:42 - INFO - Waiting for TextExtractionAgent to complete...
+2025-06-29 15:50:44 - INFO - TextExtractionAgent completed
+2025-06-29 15:50:44 - INFO - Raw TextExtractionAgent response: {'response_type': 'text', 'is_task_complete': False, 'require_user_input': True, 'content': 'Tìm file liên quan đến project-final sau đó trích xuất thông tin file'}
+2025-06-29 15:50:44 - INFO - Extracted content from response dict with key 'content': Tìm file liên quan đến project-final sau đó trích xuất thông tin file...
+2025-06-29 15:50:44 - INFO - TextExtractionAgent response: [Text Extraction Agent]: Tìm file liên quan đến project-final sau đó trích xuất thông tin file...
+2025-06-29 15:50:44 - INFO - Analyzing response to suggest next agent...
+2025-06-29 15:50:44 - INFO - No additional agent suggested or already in use
+2025-06-29 15:50:44 - INFO - Used tools: ['filesystem', 'metadata', 'text_extraction']
+2025-06-29 15:52:58 - INFO - Kế hoạch agent: ['filesystem', 'text_extraction']
+2025-06-29 15:52:58 - INFO - Kế hoạch agent: ['filesystem', 'text_extraction']
+2025-06-29 15:52:58 - INFO - Running agent: filesystem
+2025-06-29 15:52:58 - INFO - Running FilesystemAgent with query: Tìm file liên quan đến project-final sau đó trích xuất nội dung
+2025-06-29 15:52:58 - INFO - Waiting for FilesystemAgent to complete...
+2025-06-29 15:53:11 - INFO - FilesystemAgent completed
+2025-06-29 15:53:14 - INFO - Running agent: text_extraction
+2025-06-29 15:53:14 - INFO - Checking message for file path: [Filesystem Agent]: Tôi đã tìm thấy file: C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\d...
+2025-06-29 15:53:14 - INFO - Found filesystem agent message with standard format
+2025-06-29 15:53:14 - INFO - Extracted file path: C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data\\project-final-DV.pdf
+2025-06-29 15:53:14 - INFO - Enhanced query with file path: Extract text from the file at path C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data\\project-final-DV.pdf
+2025-06-29 15:53:14 - INFO - Waiting for TextExtractionAgent to complete...
+2025-06-29 15:53:22 - INFO - TextExtractionAgent completed
+2025-06-29 15:53:22 - INFO - Raw TextExtractionAgent response: {'response_type': 'data', 'is_task_complete': True, 'require_user_input': False, 'content': 'ĐỒ ÁN CUỐI KỲ\nTRỰC QUAN HÓA DỮ LIỆU\nNội dung\n•Trình bày một dự án ứng dụng trực quan sử dụng dashboard để phân tích dữ\nliệu\n•Ngữ cảnh của dữ liệu là Việt Nam\n•Các nhóm trình bày trong buổi vấn đáp.\nYêu cầu về dữ liệu\nDữ liệu là dữ liệu thật có liên quan đất nước Việt Nam. Dữ liệu phải có tối thiểu 6\nbiến độc lập và tối thiểu 1000 dòng . Tổng số dữ liệu liên quan đến Việt Nam phải\ntrên50%dữ liệu\nCác tiêu chí để đánh giá\n1.Kết hợp nguồn dữ liệu đáng tin cậy:\n•Nếu có bất kỳ nguồn dữ liệu nào được sử dụng, đảm bảo rằng nó đáng tin\ncậy và được cung cấp một cách minh bạch.\n•Kiểm tra xem liệu có bất kỳ thiếu sót nào trong quy trình xử lý dữ liệu hay\nkhông.\n2.Phù hợp với mục đích:\n1•Trực quan hóa phải phản ánh mục đích cụ thể của nó. Ví dụ, biểu đồ cột\nthích hợp để so sánh dữ liệu, trong khi biểu đồ đường thích hợp để theo dõi\nxu hướng thời gian.\n•Cân nhắc xem liệu trực quan hóa có phù hợp với đối tượng mục tiêu hay\nkhông.\n3.Rõ ràng và dễ hiểu:\n•Trực quan hóa nên truyền đạt thông điệp một cách rõ ràng và dễ hiểu.\n•Biểu đồ và đồ thị nên được thiết kế sao cho người xem có thể nhanh chóng\nnhận thức và hiểu thông tin.\n4.Sự tích hợp và liên kết:\n•Nếu có nhiều biểu đồ hoặc đồ thị, đảm bảo sự liên kết và tích hợp giữa chúng.\n•Mối quan hệ giữa các phần của trực quan hóa nên được làm rõ.\n5.Tương tác và điều hướng:\n•Sự tương tác, nếu có, nên được tích hợp một cách hợp lý để người xem có\nthể thăm dò dữ liệu.\n•Hệ thống điều hướng nên được xây dựng một cách dễ sử dụng.\n6.Thiết kế hấp dẫn:\n•Thiết kế đồ họa và màu sắc nên làm cho trực quan hóa trở nên hấp dẫn và\ndễ thu hút sự chú ý.\n•Sử dụng màu sắc một cách có ý nghĩa và tránh sự quá tải màu.\n7.Phân tích dữ liệu :\n•Trực quan hóa nên thể hiện sự thay đổi và xu hướng theo thời gian nếu có.\n•Mối quan hệ giữa các biến cần phải rõ ràng.\n•Những kết luận và câu chuyện liên quan .\n8.Tích hợp AI\n2'}
+2025-06-29 15:53:22 - INFO - Extracted content from response dict with key 'content': ĐỒ ÁN CUỐI KỲ
+TRỰC QUAN HÓA DỮ LIỆU
+Nội dung
+•Trình bày một dự án ứng dụng trực quan sử dụng dashboa...
+2025-06-29 15:53:22 - INFO - TextExtractionAgent response: [Text Extraction Agent]: Kết quả trích xuất từ file C:\\Users\\dhuu3\\Desktop\\local-classify-docs-a...
+2025-06-29 15:53:22 - INFO - Analyzing response to suggest next agent...
+2025-06-29 15:53:23 - INFO - No additional agent suggested or already in use
+2025-06-29 15:53:23 - INFO - Used tools: ['filesystem', 'text_extraction']
