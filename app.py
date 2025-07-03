@@ -7,57 +7,50 @@ import os
 import sys
 import traceback
 import threading
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 import uuid
 import logging
 from contextlib import asynccontextmanager
 import atexit
 import gc
 import warnings
+import hashlib
+import json
 from dotenv import load_dotenv
 load_dotenv()
 
-# CRITICAL: Fix for Python 3.13 compatibility - Apply BEFORE any other imports
-# This must be the FIRST thing we do to avoid the inspect.cleandoc error
+# CRITICAL: Fix for Python 3.13 compatibility
 import inspect
 
-# Completely override the problematic cleandoc function
 def safe_cleandoc(doc):
     """Safe implementation of inspect.cleandoc that handles all edge cases"""
-    # Handle None input
     if doc is None:
         return ''
     
-    # Handle list inputs - convert to string first
     if isinstance(doc, list):
         if not doc:
             return ''
         try:
-            # Join list elements with newlines, handling nested structures
             doc = '\n'.join(str(item) for item in doc)
         except Exception:
             return ''
     
-    # Handle dict inputs
     if isinstance(doc, dict):
         try:
             doc = str(doc)
         except Exception:
             return ''
     
-    # Convert to string if not already
     if not isinstance(doc, str):
         try:
             doc = str(doc)
         except Exception:
             return ''
     
-    # Handle empty string
     if not doc or not doc.strip():
         return ''
         
     try:
-        # Ensure we have a string before calling expandtabs()
         if not hasattr(doc, 'expandtabs'):
             doc = str(doc)
         
@@ -65,14 +58,12 @@ def safe_cleandoc(doc):
         if not lines:
             return ''
         
-        # Find minimum indentation (skip first line)
         indent = float('inf')
         for line in lines[1:]:
             stripped = line.lstrip()
             if stripped:
                 indent = min(indent, len(line) - len(stripped))
         
-        # Build result
         trimmed = [lines[0].strip()]
         if indent != float('inf') and indent > 0:
             for line in lines[1:]:
@@ -84,14 +75,12 @@ def safe_cleandoc(doc):
             for line in lines[1:]:
                 trimmed.append(line.rstrip())
         
-        # Remove trailing empty lines
         while trimmed and not trimmed[-1]:
             trimmed.pop()
         
         return '\n'.join(trimmed)
         
-    except Exception as e:
-        # Final fallback - just return string representation
+    except Exception:
         try:
             result = str(doc).strip()
             return result
@@ -101,16 +90,89 @@ def safe_cleandoc(doc):
 # Force override the inspect.cleandoc function
 inspect.cleandoc = safe_cleandoc
 
-# Also monkey patch it in case it's already been imported elsewhere
-import builtins
-if hasattr(builtins, 'cleandoc'):
-    builtins.cleandoc = safe_cleandoc
-
-# Configure logging
+# Configure logging FIRST
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="grpc")
+
+# Authentication Configuration
+USERS_FILE = "users.json"
+
+DEFAULT_ADMIN = {
+    "username": "admin",
+    "password": "admin123",
+    "role": "admin"
+}
+
+class AuthManager:
+    """Simple authentication manager"""
+    
+    def __init__(self):
+        self.users = self.load_users()
+        self.ensure_default_admin()
+    
+    def load_users(self):
+        """Load users from file"""
+        try:
+            if os.path.exists(USERS_FILE):
+                with open(USERS_FILE, 'r') as f:
+                    return json.load(f)
+            return {}
+        except Exception as e:
+            logger.error(f"Error loading users: {e}")
+            return {}
+    
+    def save_users(self):
+        """Save users to file"""
+        try:
+            with open(USERS_FILE, 'w') as f:
+                json.dump(self.users, f, indent=4)
+            return True
+        except Exception as e:
+            logger.error(f"Error saving users: {e}")
+            return False
+    
+    def hash_password(self, password: str):
+        """Hash password with salt"""
+        salt = os.urandom(32)
+        key = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
+        return salt.hex() + ':' + key.hex()
+    
+    def verify_password(self, password: str, hashed: str):
+        """Verify password against hash"""
+        try:
+            salt_hex, key_hex = hashed.split(':')
+            salt = bytes.fromhex(salt_hex)
+            key = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
+            return key.hex() == key_hex
+        except Exception:
+            return False
+    
+    def ensure_default_admin(self):
+        """Ensure default admin user exists"""
+        if not self.users or "admin" not in self.users:
+            self.users["admin"] = {
+                "username": DEFAULT_ADMIN["username"],
+                "password": self.hash_password(DEFAULT_ADMIN["password"]),
+                "role": DEFAULT_ADMIN["role"],
+                "created_at": time.time()
+            }
+            self.save_users()
+            logger.info("Created default admin user")
+    
+    def authenticate(self, username: str, password: str):
+        """Authenticate user"""
+        if username in self.users:
+            user = self.users[username]
+            if self.verify_password(password, user["password"]):
+                user["last_login"] = time.time()
+                self.save_users()
+                return True, user
+        return False, None
+
+# Initialize authentication manager
+auth_manager = AuthManager()
 
 # Add root directory to sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -147,7 +209,7 @@ except ImportError as e:
     MultiAgentSystem = MockMultiAgentSystem
     print("Using mock MultiAgentSystem for demonstration")
 
-# Event loop configuration for Windows
+# Event loop configuration
 if platform.system() == 'Windows':
     try:
         if hasattr(asyncio, 'WindowsProactorEventLoopPolicy'):
@@ -160,7 +222,7 @@ if platform.system() == 'Windows':
 nest_asyncio.apply()
 
 def safe_str_conversion(data):
-    """Safely convert any data to string, handling lists and complex structures"""
+    """Safely convert any data to string"""
     if data is None:
         return ""
     
@@ -169,20 +231,16 @@ def safe_str_conversion(data):
     
     if isinstance(data, list):
         try:
-            # Handle list of strings
             if all(isinstance(item, str) for item in data):
                 return '\n'.join(data)
-            # Handle mixed list
             return '\n'.join(str(item) for item in data)
         except Exception:
             return str(data)
     
     if isinstance(data, dict):
         try:
-            # Try to get content field first
             if 'content' in data:
                 return safe_str_conversion(data['content'])
-            # Otherwise convert whole dict
             return str(data)
         except Exception:
             return str(data)
@@ -203,9 +261,7 @@ def safe_progress_update(progress, value, desc=""):
         return False
 
 class SingletonAsyncSystem:
-    """
-    Singleton pattern for managing async system - keeps event loop alive
-    """
+    """Singleton pattern for managing async system"""
     _instance = None
     _lock = threading.Lock()
     
@@ -235,11 +291,8 @@ class SingletonAsyncSystem:
             
         def run_loop():
             try:
-                # Create new event loop for this thread
                 self.loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(self.loop)
-                
-                # Keep loop running forever
                 self.loop.run_forever()
             except Exception as e:
                 logger.error(f"Event loop error: {e}")
@@ -250,7 +303,6 @@ class SingletonAsyncSystem:
         self.loop_thread = threading.Thread(target=run_loop, daemon=True)
         self.loop_thread.start()
         
-        # Wait for loop to be ready
         timeout = 10
         start_time = time.time()
         while (not self.loop or not self.loop.is_running()) and (time.time() - start_time) < timeout:
@@ -291,16 +343,12 @@ class SingletonAsyncSystem:
             self.start_event_loop()
         
         try:
-            # Schedule initialization on the persistent loop
             future = asyncio.run_coroutine_threadsafe(
                 self._initialize_system(), 
                 self.loop
             )
-            
-            # Wait for result with timeout
             success, error = future.result(timeout=150)
             return success, error
-            
         except Exception as e:
             error_msg = f"Failed to initialize system: {str(e)}"
             logger.error(error_msg)
@@ -308,7 +356,7 @@ class SingletonAsyncSystem:
             return False, error_msg
     
     async def _process_message(self, message, request_id):
-        """Internal method to process message with enhanced error handling"""
+        """Internal method to process message"""
         try:
             if not self.initialized or not self.system:
                 return {"error": "System not initialized"}
@@ -316,17 +364,13 @@ class SingletonAsyncSystem:
             logger.info(f"Processing message: {message[:100]}...")
             result = await self.system.run(message, request_id)
             
-            # Enhanced result processing with safe conversion
             if result is None:
                 return {"error": "No response received from system"}
             
-            # Handle different response formats
             if isinstance(result, dict):
-                # Ensure content is properly converted to string
                 if 'content' in result:
                     result['content'] = safe_str_conversion(result['content'])
                 
-                # Handle chain_of_thought with safe access
                 if 'chain_of_thought' in result and result['chain_of_thought'] is not None:
                     try:
                         if isinstance(result['chain_of_thought'], list):
@@ -339,7 +383,6 @@ class SingletonAsyncSystem:
                 
                 return result
             else:
-                # If result is not a dict, wrap it
                 content = safe_str_conversion(result)
                 return {"content": content, "chain_of_thought": ["Response processed successfully"]}
             
@@ -355,16 +398,12 @@ class SingletonAsyncSystem:
             return {"error": "Event loop not running"}
         
         try:
-            # Schedule processing on the persistent loop
             future = asyncio.run_coroutine_threadsafe(
                 self._process_message(message, request_id), 
                 self.loop
             )
-            
-            # Wait for result with timeout
             result = future.result(timeout=200)
             return result
-            
         except Exception as e:
             error_msg = f"Failed to process message: {str(e)}"
             logger.error(error_msg)
@@ -377,12 +416,8 @@ class SingletonAsyncSystem:
             self.system = None
             self.initialized = False
             self.initialization_error = None
-            
-            # Force garbage collection
             gc.collect()
-            
             return "System reset successfully. Please reinitialize."
-            
         except Exception as e:
             logger.error(f"Reset error: {e}")
             return f"Reset error: {str(e)}"
@@ -391,12 +426,9 @@ class SingletonAsyncSystem:
         """Cleanup resources"""
         try:
             if self.loop and self.loop.is_running():
-                # Schedule loop stop
                 self.loop.call_soon_threadsafe(self.loop.stop)
-                
             if self.loop_thread and self.loop_thread.is_alive():
                 self.loop_thread.join(timeout=5)
-                
         except Exception as e:
             logger.warning(f"Cleanup error: {e}")
 
@@ -404,9 +436,7 @@ class SingletonAsyncSystem:
 async_system = SingletonAsyncSystem()
 
 class MultiAgentChatbot:
-    """
-    Simplified chatbot class using singleton async system
-    """
+    """Simplified chatbot class using singleton async system"""
     
     def __init__(self):
         self.chat_history = []
@@ -434,64 +464,49 @@ class MultiAgentChatbot:
         return message, [], [], "⚪ System reset. Please reinitialize."
     
     def process_message(self, message: str, history: List, progress=None):
-        """Process a user message and return the response with enhanced error handling"""
+        """Process a user message and return the response"""
         try:
-            # Input validation
             if not async_system.initialized:
                 return history, self.chain_of_thought, "❌ System not initialized. Please initialize first."
             
             if not message or not message.strip():
                 return history, self.chain_of_thought, "Please enter a message."
             
-            # Safe progress update
             safe_progress_update(progress, 0.1, "Starting request processing...")
             
-            # Create new message dict in proper format for Gradio
             user_message = {"role": "user", "content": message}
             new_history = history + [user_message] if history is not None else [user_message]
             
-            # Reset chain of thought for new request
             self.chain_of_thought = []
-            
-            # Create unique request ID
             request_id = f"request_{int(time.time())}_{str(uuid.uuid4())[:8]}"
             
             safe_progress_update(progress, 0.3, "Processing with multi-agent system...")
             
             logger.info(f"Processing message with request_id: {request_id}")
-            
-            # Process message using singleton system
             result = async_system.process_message(message, request_id)
             
             safe_progress_update(progress, 0.8, "Processing response...")
             
             logger.info(f"Received result type: {type(result)}")
             
-            # Enhanced error handling for result
             if result is None:
                 error_msg = "No response received from system"
                 logger.error(error_msg)
-                
                 assistant_message = {"role": "assistant", "content": f"❌ {error_msg}"}
                 new_history.append(assistant_message)
-                
                 self.chain_of_thought.append(f"❌ Error: {error_msg}")
                 return new_history, self.chain_of_thought, ""
             
             if isinstance(result, dict) and "error" in result:
                 error_msg = result.get("error", "Unknown error occurred")
                 logger.error(f"Error in result: {error_msg}")
-                
                 assistant_message = {"role": "assistant", "content": f"❌ {error_msg}"}
                 new_history.append(assistant_message)
-                
                 self.chain_of_thought.append(f"❌ Error: {error_msg}")
                 return new_history, self.chain_of_thought, ""
             
-            # Get response content with safe conversion
             response_content = safe_str_conversion(result.get("content", "Sorry, I couldn't process your request."))
             
-            # Update chain of thought with safe conversion and access
             try:
                 if "chain_of_thought" in result and result["chain_of_thought"]:
                     if isinstance(result["chain_of_thought"], list):
@@ -504,7 +519,6 @@ class MultiAgentChatbot:
                 logger.warning(f"Chain of thought processing error: {cot_error}")
                 self.chain_of_thought = ["Chain of thought processing completed with minor issues"]
             
-            # Add assistant response to history
             assistant_message = {"role": "assistant", "content": response_content}
             new_history.append(assistant_message)
             
@@ -518,7 +532,6 @@ class MultiAgentChatbot:
             logger.error(f"Exception in process_message: {e}")
             logger.error(traceback.format_exc())
             
-            # Safe history handling
             try:
                 assistant_message = {"role": "assistant", "content": error_message}
                 if history is not None:
@@ -569,100 +582,622 @@ def format_chain_of_thought(chain_of_thought):
 # Register cleanup on exit
 atexit.register(async_system.cleanup)
 
-# Custom CSS
+# Clean CSS with unified white text and fixed layouts
 css = """
-.gradio-container {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+/* Force remove all backgrounds first */
+*, *::before, *::after {
+    background-color: transparent !important;
+    background-image: none !important;
 }
 
-.status-success {
-    color: #4CAF50;
-    font-weight: bold;
+/* Apply gradient to main containers */
+body, html, .gradio-container {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    min-height: 100vh !important;
+    background-attachment: fixed !important;
+    color: #ffffff !important;
 }
 
-.status-error {
-    color: #f44336;
-    font-weight: bold;
+/* Remove all Gradio default backgrounds */
+.gradio-container div,
+.gradio-container .gr-column,
+.gradio-container .gr-row,
+.gradio-container .gr-group,
+.gradio-container .gr-block,
+.gradio-container .gr-box,
+.gradio-container .gr-form,
+.gradio-container .gr-panel,
+.gradio-container .contain,
+.gradio-container .flex,
+.gradio-container .gap {
+    background: transparent !important;
 }
 
-.status-warning {
-    color: #ff9800;
-    font-weight: bold;
+/* FORCE ALL TEXT TO BE WHITE */
+.gradio-container *,
+.gradio-container p,
+.gradio-container span,
+.gradio-container div,
+.gradio-container label,
+.gradio-container h1,
+.gradio-container h2,
+.gradio-container h3,
+.gradio-container h4,
+.gradio-container h5,
+.gradio-container h6 {
+    color: #ffffff !important;
+    font-family: 'Space Grotesk', sans-serif !important;
 }
 
-.chain-of-thought {
-    background-color: #f8f9fa;
-    border-radius: 8px;
-    padding: 15px;
-    border-left: 4px solid #2196F3;
-    font-size: 14px;
-    max-height: 400px;
-    overflow-y: auto;
+/* App logo styling - centered and larger */
+.app-logo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 2rem;
+    animation: logoFloat 3s ease-in-out infinite;
+}
+
+@keyframes logoFloat {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-8px); }
+}
+
+.logo-icon {
+    width: 120px;
+    height: 120px;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    border-radius: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 4rem;
+    box-shadow: 0 25px 50px rgba(59, 130, 246, 0.4);
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+
+.logo-icon::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    animation: logoShine 4s infinite;
+}
+
+@keyframes logoShine {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* Login form styling */
+.login-form {
+    background: rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 24px !important;
+    padding: 3rem !important;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3) !important;
+    max-width: 450px !important;
+    margin: 2rem auto !important;
+    animation: fadeInUp 0.6s ease-out !important;
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Input styling with white text */
+input[type="text"], input[type="password"], textarea {
+    background: rgba(255, 255, 255, 0.15) !important;
+    border: 2px solid rgba(255, 255, 255, 0.3) !important;
+    border-radius: 12px !important;
+    color: #ffffff !important;
+    padding: 16px 20px !important;
+    font-size: 16px !important;
+    font-weight: 500 !important;
+    font-family: 'Space Grotesk', sans-serif !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    backdrop-filter: blur(10px) !important;
+}
+
+input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
+    border-color: #3b82f6 !important;
+    background: rgba(255, 255, 255, 0.2) !important;
+    outline: none !important;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2) !important;
+    transform: translateY(-2px) !important;
+}
+
+input::placeholder, textarea::placeholder {
+    color: rgba(255, 255, 255, 0.7) !important;
+    font-weight: 400 !important;
+}
+
+/* Button styling */
+.gr-button {
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6) !important;
+    border: none !important;
+    border-radius: 12px !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    font-family: 'Space Grotesk', sans-serif !important;
+    padding: 14px 28px !important;
+    font-size: 15px !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+.gr-button:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 12px 35px rgba(59, 130, 246, 0.5) !important;
+}
+
+.gr-button-secondary {
+    background: rgba(255, 255, 255, 0.15) !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    color: #ffffff !important;
+    backdrop-filter: blur(10px) !important;
+}
+
+.gr-button-secondary:hover {
+    background: rgba(255, 255, 255, 0.25) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* Glass panels with white borders */
+.chatbot, .gr-chatbot {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 2px solid rgba(255, 255, 255, 0.3) !important;
+    border-radius: 20px !important;
+    backdrop-filter: blur(20px) !important;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2) !important;
+    color: #ffffff !important;
+}
+
+.control-panel {
+    background: rgba(255, 255, 255, 0.08) !important;
+    backdrop-filter: blur(20px) !important;
+    border: 2px solid rgba(255, 255, 255, 0.3) !important;
+    border-radius: 20px !important;
+    padding: 2rem !important;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2) !important;
+}
+
+.chain-display {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 2px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 16px !important;
+    padding: 1.5rem !important;
+    color: #ffffff !important;
+    backdrop-filter: blur(10px) !important;
+}
+
+/* Typography with consistent white colors */
+h1, h2, h3, h4, h5, h6 {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    font-family: 'Space Grotesk', sans-serif !important;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+p, span, div {
+    color: #ffffff !important;
+    font-family: 'Space Grotesk', sans-serif !important;
+}
+
+label {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    font-size: 16px !important;
+    font-family: 'Space Grotesk', sans-serif !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Chat messages with white text */
+.chatbot .message,
+.gr-chatbot .message,
+.chatbot .message-row,
+.gr-chatbot .message-row {
+    color: #ffffff !important;
+}
+
+/* Status indicators with enhanced visibility */
+.status-success { 
+    color: #22c55e !important; 
+    font-weight: 800 !important;
+    font-size: 16px !important;
+    text-shadow: 0 2px 4px rgba(34, 197, 94, 0.4) !important;
+}
+
+.status-error { 
+    color: #ef4444 !important; 
+    font-weight: 800 !important;
+    font-size: 16px !important;
+    text-shadow: 0 2px 4px rgba(239, 68, 68, 0.4) !important;
+}
+
+.status-warning { 
+    color: #f59e0b !important; 
+    font-weight: 800 !important;
+    font-size: 16px !important;
+    text-shadow: 0 2px 4px rgba(245, 158, 11, 0.4) !important;
+}
+
+/* User info with enhanced styling */
+.user-info {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border: 2px solid rgba(255, 255, 255, 0.3) !important;
+    border-radius: 50px !important;
+    padding: 10px 20px !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    backdrop-filter: blur(15px) !important;
+    margin-bottom: 1rem !important;
+    display: inline-block !important;
+    float: right !important;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Alert styling with white text */
+.alert {
+    padding: 16px 20px !important;
+    border-radius: 12px !important;
+    margin: 12px 0 !important;
+    background: rgba(239, 68, 68, 0.15) !important;
+    border: 2px solid rgba(239, 68, 68, 0.4) !important;
+    color: #ffffff !important;
+    backdrop-filter: blur(10px) !important;
+    font-weight: 600 !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Scrollbar with white theme */
+::-webkit-scrollbar { 
+    width: 8px; 
+}
+
+::-webkit-scrollbar-track { 
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb { 
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover { 
+    background: rgba(255, 255, 255, 0.5);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .login-form { 
+        margin: 1rem !important; 
+        padding: 2rem !important; 
+    }
+    
+    .logo-icon {
+        width: 100px;
+        height: 100px;
+        font-size: 3rem;
+    }
+    
+    .control-panel {
+        margin-top: 1rem !important;
+    }
+}
+
+/* Accordion styling */
+.gr-accordion {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 2px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 12px !important;
+    backdrop-filter: blur(10px) !important;
+}
+
+/* Force override any remaining dark text */
+.gradio-container .gr-textbox,
+.gradio-container .gr-chatbot,
+.gradio-container .gr-accordion,
+.gradio-container .gr-button,
+.gradio-container textarea,
+.gradio-container input {
+    color: #ffffff !important;
+}
+
+/* Specific overrides for chat interface */
+.gr-chatbot .message-content,
+.gr-chatbot .user-message,
+.gr-chatbot .assistant-message {
+    color: #ffffff !important;
 }
 """
 
 # Create Gradio interface
-with gr.Blocks(css=css, title="Multi-Agent Chatbot", theme=gr.themes.Soft()) as demo:
-    gr.Markdown("# 🤖 Multi-Agent Chatbot System")
-    gr.Markdown("Advanced AI chatbot with persistent event loop management and enhanced error handling")
+with gr.Blocks(css=css, title="🤖 Multi-Agent AI Chatbot", theme=gr.themes.Soft()) as demo:
+    # Shared state variables
+    current_user = gr.State(None)
     
-    with gr.Row():
-        with gr.Column(scale=3):
-            chatbot_interface = gr.Chatbot(
-                label="Conversation",
-                height=500,
-                show_label=True,
-                avatar_images=("👤", "🤖"),
-                type="messages"
+    # Login Section
+    with gr.Group(visible=True) as login_section:
+        # App Logo and Branding
+        gr.HTML("""
+        <div class="app-logo">
+            <div class="logo-icon">
+                <div style="position: relative; z-index: 2;">🤖</div>
+            </div>
+        </div>
+        """)
+        
+        gr.HTML("""
+        <div style="text-align: center; margin-bottom: 3rem;">
+            <h1 style="font-size: 2.8rem; margin-bottom: 0.5rem; color: #ffffff; font-weight: 800; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);">
+                AI Command Center
+            </h1>
+            <p style="font-size: 1.2rem; margin: 0; color: #ffffff; font-weight: 500; opacity: 0.9; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);">
+                Secure Access Required • Advanced Multi-Agent Intelligence System
+            </p>
+        </div>
+        """)
+        
+        with gr.Column(elem_classes=["login-form"]):
+            gr.HTML("""
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <div style="font-size: 3rem; margin-bottom: 0.5rem;">🔐</div>
+                <h3 style="margin: 0; color: #ffffff; font-weight: 700; font-size: 20px; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);">System Authentication</h3>
+            </div>
+            """)
+            
+            username = gr.Textbox(
+                label="👤 Username",
+                placeholder="Enter your access credentials",
+                container=True,
+                elem_classes=["login-input"]
             )
+            password = gr.Textbox(
+                label="🔑 Password",
+                placeholder="Enter your secure password",
+                type="password",
+                container=True,
+                elem_classes=["login-input"]
+            )
+            login_message = gr.Markdown("", visible=False)
             
-            with gr.Row():
-                msg = gr.Textbox(
-                    label="Message",
-                    placeholder="Enter your question here...",
-                    scale=4,
-                    interactive=True
+            login_btn = gr.Button("🚀 Access System", variant="primary", size="lg", elem_classes=["login-button"])
+    
+    # Main Application
+    with gr.Group(visible=False) as main_app:
+        # App Logo and Header - Centered
+        gr.HTML("""
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin-bottom: 1rem;">
+                <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 15px; display: flex; align-items: center; justify-content: center; font-size: 2rem; box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);">
+                    🤖
+                </div>
+                <h1 style="font-size: 2.2rem; margin: 0; color: #ffffff; font-weight: 800; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);">
+                    AI Command Center
+                </h1>
+            </div>
+            <p style="font-size: 1.1rem; margin: 0; color: #ffffff; opacity: 0.9; font-weight: 500; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);">
+                Next-Generation Multi-Agent Intelligence • Real-time Processing • Enhanced Security
+            </p>
+        </div>
+        """)
+        
+        # User info display - Simple avatar and name
+        user_info = gr.HTML("", elem_classes=["user-info"])
+        
+        with gr.Row():
+            # Main chat area
+            with gr.Column(scale=3):
+                chatbot_interface = gr.Chatbot(
+                    label="🧠 Intelligence Interface",
+                    height=500,
+                    show_label=True,
+                    type="messages",
+                    show_copy_button=True,
+                    elem_classes=["chatbot"]
                 )
-                send_btn = gr.Button("Send", variant="primary", scale=1)
                 
-            with gr.Row():
-                clear_btn = gr.Button("Clear History", variant="secondary")
-                
-        with gr.Column(scale=1):
-            gr.Markdown("## 🎛️ Control Panel")
-            
-            status_display = gr.Markdown("⚪ System not initialized")
-            
-            with gr.Row():
-                init_btn = gr.Button("🔄 Initialize", variant="primary")
-                reset_btn = gr.Button("🗑️ Reset", variant="secondary")
-            
-            with gr.Accordion("🔧 System Information", open=False):
-                gr.Markdown(f"""
-                **Python**: {sys.version.split()[0]}
-                **Platform**: {platform.system()} {platform.release()}
-                **Event Loop**: Persistent Background Thread
-                **Error Handling**: Enhanced with Safe String Conversion
-                """)
-            
-            gr.Markdown("## 🔍 Processing Details")
-            chain_display = gr.Markdown("No processing steps yet.", elem_classes=["chain-of-thought"])
+                # Input area
+                with gr.Row():
+                    msg = gr.Textbox(
+                        label="💬 Your Message",
+                        placeholder="Ask me anything... I'm powered by advanced AI agents 🚀",
+                        scale=4,
+                        lines=2,
+                        max_lines=4
+                    )
+                    send_btn = gr.Button("⚡ Send", variant="primary", scale=1, size="lg")
+                        
+                # Action buttons
+                with gr.Row():
+                    clear_btn = gr.Button("🗑️ Clear Chat", variant="secondary")
+                    logout_btn = gr.Button("🚪 Logout", variant="secondary")
+                    
+            # Control panel
+            with gr.Column(scale=1):
+                with gr.Group(elem_classes=["control-panel"]):
+                    gr.HTML("""
+                    <div style="text-align: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                            🎛️ System Control
+                        </h3>
+                    </div>
+                    """)
+                    
+                    # Status display
+                    status_display = gr.HTML(
+                        '<div class="status-warning">⚪ System Initializing...</div>'
+                    )
+                    
+                    # Control buttons
+                    with gr.Row():
+                        init_btn = gr.Button("🔄 Initialize AI", variant="primary", size="sm")
+                        reset_btn = gr.Button("🔃 Reset", variant="secondary", size="sm")
+                    
+                    # System information
+                    with gr.Accordion("🔧 System Diagnostics", open=False):
+                        gr.HTML(f"""
+                        <div style="padding: 1rem; background: rgba(255, 255, 255, 0.05); border-radius: 8px; font-size: 0.9rem; line-height: 1.6;">
+                            <div style="margin-bottom: 0.5rem;"><strong>🐍 Python:</strong> {sys.version.split()[0]}</div>
+                            <div style="margin-bottom: 0.5rem;"><strong>💻 Platform:</strong> {platform.system()} {platform.release()}</div>
+                            <div style="margin-bottom: 0.5rem;"><strong>🔄 Event Loop:</strong> Persistent Background</div>
+                            <div style="margin-bottom: 0.5rem;"><strong>🛡️ Error Handling:</strong> Enhanced Protocol</div>
+                            <div><strong>🚀 Status:</strong> Real-time Monitoring</div>
+                        </div>
+                        """)
+                    
+                    # Processing visualization
+                    gr.HTML("""
+                    <div style="text-align: center; margin: 1.5rem 0 1rem 0;">
+                        <h4 style="margin: 0; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                            🧠 AI Processing
+                        </h4>
+                    </div>
+                    """)
+                    
+                    chain_display = gr.HTML(
+                        """
+                        <div class="chain-display">
+                            <div style="text-align: center; padding: 1rem;">
+                                <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🔮</div>
+                                <div style="font-weight: 600; margin-bottom: 0.25rem;">Ready for Intelligence Processing</div>
+                                <div style="opacity: 0.7; font-size: 0.9rem;">Waiting for your queries...</div>
+                            </div>
+                        </div>
+                        """,
+                        elem_classes=["chain-display"]
+                    )
     
     # Event handlers
+    def handle_login(username_input, password_input):
+        """Handle login attempt"""
+        if not username_input or not password_input:
+            return (
+                gr.update(value="⚠️ Please provide both username and password", visible=True, elem_classes=["login-error"]),
+                None,
+                gr.update(),
+                gr.update(),
+                gr.update()
+            )
+        
+        success, user = auth_manager.authenticate(username_input, password_input)
+        
+        if success:
+            logger.info(f"User {username_input} accessed the system")
+            
+            user_info_html = f"""
+            <div style="display: flex; align-items: center; gap: 12px; justify-content: flex-end;">
+                <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 700; font-size: 18px; box-shadow: 0 6px 15px rgba(59, 130, 246, 0.4); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);">
+                    {user['username'][0].upper()}
+                </div>
+                <span style="color: #ffffff; font-weight: 600; font-size: 16px; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);">{user['username']}</span>
+            </div>
+            """
+            
+            return (
+                gr.update(value="", visible=False),
+                user,
+                gr.update(visible=False),
+                gr.update(visible=True),
+                gr.update(value=user_info_html)
+            )
+        else:
+            logger.warning(f"Access attempt failed for user {username_input}")
+            return (
+                gr.update(value="❌ Invalid credentials. Please verify your username and password.", visible=True, elem_classes=["login-error"]),
+                None,
+                gr.update(),
+                gr.update(),
+                gr.update()
+            )
+    
+    def handle_logout(current_user):
+        """Handle logout"""
+        if current_user:
+            username = current_user.get('username', 'Unknown')
+            logger.info(f"User {username} logged out")
+        
+        return (
+            None,
+            gr.update(visible=True),
+            gr.update(visible=False),
+            gr.update(value=""),
+            gr.update(value=""),
+            gr.update(value=""),
+            []
+        )
+    
     def send_message(message, history):
-        """Send message with proper error handling"""
+        """Send message with enhanced UI feedback"""
         try:
             if not message or not message.strip():
-                return history, "No processing steps yet.", ""
+                return history, format_chain_display([]), ""
             
             new_history, chain, empty_msg = chatbot.process_message(message, history)
-            formatted_chain = format_chain_of_thought(chain)
+            formatted_chain = format_chain_display(chain)
             return new_history, formatted_chain, empty_msg
         except Exception as e:
             logger.error(f"Send message error: {e}")
-            error_msg = f"❌ Error sending message: {str(e)}"
+            error_msg = f"⚠️ **System Error**: {str(e)}"
             error_history = history + [{"role": "assistant", "content": error_msg}] if history else [{"role": "assistant", "content": error_msg}]
-            return error_history, f"❌ Error: {str(e)}", ""
+            return error_history, format_chain_display([f"❌ Error: {str(e)}"]), ""
+    
+    def format_chain_display(chain_of_thought):
+        """Format chain of thought for modern display"""
+        if not chain_of_thought:
+            return """
+            <div class="chain-display">
+                <div style="text-align: center; padding: 1.5rem;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🔮</div>
+                    <div style="font-weight: 700; margin-bottom: 0.25rem; color: #ffffff; font-size: 16px; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);">AI Processing Center</div>
+                    <div style="opacity: 0.8; font-size: 14px; color: #ffffff;">Waiting for your next query...</div>
+                </div>
+            </div>
+            """
+        
+        steps_html = []
+        icons = ["🔍", "🧠", "⚡", "🎯", "✨", "🚀", "💫", "🔥"]
+        
+        for i, step in enumerate(chain_of_thought, 1):
+            step_str = safe_str_conversion(step)
+            icon = icons[(i-1) % len(icons)]
+            steps_html.append(f"""
+            <div style="display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 0.75rem; padding: 0.75rem; background: rgba(255, 255, 255, 0.08); border-radius: 8px; border-left: 3px solid var(--accent-blue);">
+                <div style="font-size: 1.2rem; margin-top: 0.1rem;">{icon}</div>
+                <div>
+                    <div style="font-weight: 700; font-size: 14px; margin-bottom: 0.25rem; color: #ffffff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);">Phase {i}</div>
+                    <div style="opacity: 0.9; font-size: 13px; line-height: 1.4; color: #ffffff;">{step_str}</div>
+                </div>
+            </div>
+            """)
+        
+        return f"""
+        <div class="chain-display">
+            <div style="text-align: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(255, 255, 255, 0.2);">
+                <div style="font-weight: 800; font-size: 16px; color: #ffffff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                    🧠 AI Processing Pipeline
+                </div>
+            </div>
+            <div style="max-height: 250px; overflow-y: auto;">
+                {''.join(steps_html)}
+            </div>
+        </div>
+        """
     
     def clear_history():
         return []
@@ -670,25 +1205,40 @@ with gr.Blocks(css=css, title="Multi-Agent Chatbot", theme=gr.themes.Soft()) as 
     def update_status():
         status, status_type = get_status()
         if status_type == "success":
-            return f'<span class="status-success">{status}</span>'
+            return f'<div class="status-success">✅ {status}</div>'
         elif status_type == "error":
-            return f'<span class="status-error">{status}</span>'
+            return f'<div class="status-error">❌ {status}</div>'
         else:
-            return f'<span class="status-warning">{status}</span>'
+            return f'<div class="status-warning">⚪ {status}</div>'
     
     def initialize_and_update():
         message, status_type = initialize_system()
         if status_type == "success":
-            status_html = f'<span class="status-success">{message}</span>'
+            return f'<div class="status-success">🚀 {message}</div>'
         else:
-            status_html = f'<span class="status-error">{message}</span>'
-        return status_html
+            return f'<div class="status-error">⚠️ {message}</div>'
     
     def reset_and_update():
         message, history, chain, status = reset_system()
-        return f'<span class="status-warning">{status}</span>', [], []
+        return (
+            f'<div class="status-warning">🔃 {status}</div>', 
+            [], 
+            format_chain_display([])
+        )
     
     # Wire up events
+    login_btn.click(
+        handle_login,
+        inputs=[username, password],
+        outputs=[login_message, current_user, login_section, main_app, user_info]
+    )
+    
+    logout_btn.click(
+        handle_logout,
+        inputs=[current_user],
+        outputs=[current_user, login_section, main_app, username, password, login_message, chatbot_interface]
+    )
+    
     msg.submit(
         send_message,
         inputs=[msg, chatbot_interface],
@@ -711,7 +1261,7 @@ with gr.Blocks(css=css, title="Multi-Agent Chatbot", theme=gr.themes.Soft()) as 
         clear_history,
         outputs=[chatbot_interface]
     ).then(
-        lambda: "No processing steps yet.",
+        lambda: format_chain_display([]),
         outputs=[chain_display]
     )
     

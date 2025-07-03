@@ -612,7 +612,7 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
                 agent_response = AIMessage(content="Tôi đã tìm kiếm nhưng không tìm thấy kết quả phù hợp.")
 
             # Add the agent's response to the state
-            response_content = f"[Filesystem Agent]: {agent_response.content}"
+            response_content = f"🗂️ {agent_response.content}"
             print(f"FilesystemAgent response: {response_content[:100]}...")
             state["messages"].append(AIMessage(content=response_content))
             
@@ -626,7 +626,7 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
                 
                 if isinstance(rag_result, dict) and 'content' in rag_result:
                     # Add RAG response to messages
-                    rag_content = f"[RAG Agent]: Tìm kiếm theo nội dung file:\n\n{rag_result['content']}"
+                    rag_content = f"🔍 Tìm kiếm theo nội dung file:\n\n{rag_result['content']}"
                     state["messages"].append(AIMessage(content=rag_content))
                     
                     # Add RAG to used tools
@@ -841,7 +841,7 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
                     continue
                     
                 # Check if this is a text extraction agent message
-                is_extraction_msg = ("[Text Extraction Agent]:" in message.content or 
+                is_extraction_msg = ("📄" in message.content or "[Text Extraction Agent]:" in message.content or 
                                    "Nội dung trích xuất:" in message.content or
                                    "Kết quả trích xuất từ file" in message.content)
                 
@@ -897,7 +897,7 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
             
             # Finally, look for classification from file classification agent
             for message in reversed(state["messages"]):
-                if isinstance(message, AIMessage) and ("[File Classification Agent]:" in message.content or "Kết quả phân loại file" in message.content or "Giáo dục" in message.content):
+                if isinstance(message, AIMessage) and ("🏷️" in message.content or "[File Classification Agent]:" in message.content or "Kết quả phân loại file" in message.content or "Giáo dục" in message.content):
                     log("Found file classification agent message")
                     # Look for classification label in different possible formats
                     import re
@@ -1106,7 +1106,7 @@ LƯU Ý CUỐI CÙNG:
                         log(f"Metadata agent response (no ID found): {response}")
                         
                 # Add the response to the conversation
-                formatted_response = f"[Metadata Agent]: {response_content}"
+                formatted_response = f"📋 {response_content}"
                 log(f"MetadataAgent response: {formatted_response[:200]}...")
                 state["messages"].append(AIMessage(content=formatted_response))
                 
@@ -1191,7 +1191,7 @@ LƯU Ý CUỐI CÙNG:
                             break
                     
                     # Dự phòng: Nếu không tìm thấy câu chuẩn, thử tìm bất kỳ đường dẫn Windows nào
-                    elif any(indicator in message.content for indicator in ["Đã tìm thấy file:", "tìm thấy file", "[Filesystem Agent]:", "[RAG Agent]:"]):
+                    elif any(indicator in message.content for indicator in ["Đã tìm thấy file:", "tìm thấy file", "[Filesystem Agent]:", "[RAG Agent]:", "🗂️", "🔍"]):
                         log(f"Found agent message with non-standard format")
                         
                         # Tìm bất kỳ đường dẫn nào trong tin nhắn
@@ -1309,9 +1309,9 @@ LƯU Ý CUỐI CÙNG:
 
             # Add the agent's response to the state with clear indication of extraction results
             if file_path:
-                response_content = f"[Text Extraction Agent]: Kết quả trích xuất từ file {file_path}:\n\n{content}"
+                response_content = f"📄 Kết quả trích xuất từ file {file_path}:\n\n{content}"
             else:
-                response_content = f"[Text Extraction Agent]: {content}"
+                response_content = f"📄 {content}"
                 
             log(f"TextExtractionAgent response: {response_content[:100]}...")
             state["messages"].append(AIMessage(content=response_content))
@@ -1348,7 +1348,7 @@ LƯU Ý CUỐI CÙNG:
             
             # Tìm kết quả từ TextExtractionAgent
             for message in reversed(state["messages"]):
-                if isinstance(message, AIMessage) and "[Text Extraction Agent]:" in message.content:
+                if isinstance(message, AIMessage) and ("📄" in message.content or "[Text Extraction Agent]:" in message.content):
                     # Trích xuất nội dung sau phần giới thiệu
                     text_parts = message.content.split(":\n\n", 1)
                     if len(text_parts) > 1:
@@ -1443,9 +1443,9 @@ LƯU Ý CUỐI CÙNG:
 
             # Add the agent's response to the state with clear indication of classification results
             if file_path:
-                response_content = f"[File Classification Agent]: Kết quả phân loại file {file_path}: {classification_result}"
+                response_content = f"🏷️ Kết quả phân loại file {file_path}: {classification_result}"
             else:
-                response_content = f"[File Classification Agent]: Kết quả phân loại: {classification_result}"
+                response_content = f"🏷️ Kết quả phân loại: {classification_result}"
                 
             log(f"FileClassificationAgent response: {response_content}")
             
@@ -1503,6 +1503,7 @@ LƯU Ý CUỐI CÙNG:
             5. file_classification - Phân loại nội dung tài liệu
             
             LƯU Ý QUAN TRỌNG (PHẢI TUÂN THỦ CHÍNH XÁC):
+            - Nếu yêu cầu chỉ liên quan đến tìm kiếm file thì chỉ sử dụng filesystem agent hoặc rag agent không sử dụng thêm các agent khác
             - Nếu yêu cầu liên quan đến tìm kiếm theo tên file, sử dụng filesystem agent
             - Nếu yêu cầu liên quan đến tìm kiếm theo nội dung, chủ đề, hoặc ngữ nghĩa, sử dụng rag agent
             - Nếu yêu cầu liên quan đến việc lưu metadata, PHẢI tuân thủ thứ tự chính xác sau:
