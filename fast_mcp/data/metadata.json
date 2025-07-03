@@ -1,2 +1,26 @@
 {
- }
+  "a2cd219d-7173-4975-8171-6bed7bff67f8": {
+    "id": "a2cd219d-7173-4975-8171-6bed7bff67f8",
+    "filename": "project-final-DV.pdf",
+    "label": "Giáo dục",
+    "content": "ĐỒ ÁN CUỐI KỲ\nTRỰC QUAN HÓA DỮ LIỆU\nNội dung\n•Trình bày một dự án ứng dụng trực quan sử dụng dashboard để phân tích dữ\nliệu\n•Ngữ cảnh của dữ liệu là Việt Nam\n•Các nhóm trình bày trong buổi vấn đáp.\nYêu cầu về dữ liệu\nDữ liệu là dữ liệu thật có liên quan đất nước Việt Nam. Dữ liệu phải có tối thiểu 6\nbiến độc lập và tối thiểu 1000 dòng . Tổng số dữ liệu liên quan đến Việt Nam phải\ntrên50%dữ liệu\nCác tiêu chí để đánh giá\n1.Kết hợp nguồn dữ liệu đáng tin cậy:\n•Nếu có bất kỳ nguồn dữ liệu nào được sử dụng, đảm bảo rằng nó đáng tin\ncậy và được cung cấp một cách minh bạch.\n•Kiểm tra xem liệu có bất kỳ thiếu sót nào trong quy trình xử lý dữ liệu hay\nkhông.\n2.Phù hợp với mục đích:\n1•Trực quan hóa phải phản ánh mục đích cụ thể của nó. Ví dụ, biểu đồ cột\nthích hợp để so sánh dữ liệu, trong khi biểu đồ đường thích hợp để theo dõi\nxu hướng thời gian.\n•Cân nhắc xem liệu trực quan hóa có phù hợp với đối tượng mục tiêu hay\nkhông.\n3.Rõ ràng và dễ hiểu:\n•Trực quan hóa nên truyền đạt thông điệp một cách rõ ràng và dễ hiểu.\n•Biểu đồ và đồ thị nên được thiết kế sao cho người xem có thể nhanh chóng\nnhận thức và hiểu thông tin.\n4.Sự tích hợp và liên kết:\n•Nếu có nhiều biểu đồ hoặc đồ thị, đảm bảo sự liên kết và tích hợp giữa chúng.\n•Mối quan hệ giữa các phần của trực quan hóa nên được làm rõ.\n5.Tương tác và điều hướng:\n•Sự tương tác, nếu có, nên được tích hợp một cách hợp lý để người xem có\nthể thăm dò dữ liệu.\n•Hệ thống điều hướng nên được xây dựng một cách dễ sử dụng.\n6.Thiết kế hấp dẫn:\n•Thiết kế đồ họa và màu sắc nên làm cho trực quan hóa trở nên hấp dẫn và\ndễ thu hút sự chú ý.\n•Sử dụng màu sắc một cách có ý nghĩa và tránh sự quá tải màu.\n7.Phân tích dữ liệu :\n•Trực quan hóa nên thể hiện sự thay đổi và xu hướng theo thời gian nếu có.\n•Mối quan hệ giữa các biến cần phải rõ ràng.\n•Những kết luận và câu chuyện liên quan .\n8.Tích hợp AI\n2",
+    "created_at": "2025-07-03T15:38:28.373613",
+    "updated_at": "2025-07-03T15:38:28.373613",
+    "additional_metadata": {
+      "total_characters": 1848.0,
+      "creation_date": "2025-07-03T22:38:27Z"
+    }
+  },
+  "d9693ee5-3d23-412d-bf44-dd70a2535653": {
+    "id": "d9693ee5-3d23-412d-bf44-dd70a2535653",
+    "filename": "project-final-DV.pdf",
+    "label": "Giáo dục",
+    "content": "ĐỒ ÁN CUỐI KỲ\nTRỰC QUAN HÓA DỮ LIỆU\nNội dung\n•Trình bày một dự án ứng dụng trực quan sử dụng dashboard để phân tích dữ\nliệu\n•Ngữ cảnh của dữ liệu là Việt Nam\n•Các nhóm trình bày trong buổi vấn đáp.\nYêu cầu về dữ liệu\nDữ liệu là dữ liệu thật có liên quan đất nước Việt Nam. Dữ liệu phải có tối thiểu 6\nbiến độc lập và tối thiểu 1000 dòng . Tổng số dữ liệu liên quan đến Việt Nam phải\ntrên50%dữ liệu\nCác tiêu chí để đánh giá\n1.Kết hợp nguồn dữ liệu đáng tin cậy:\n•Nếu có bất kỳ nguồn dữ liệu nào được sử dụng, đảm bảo rằng nó đáng tin\ncậy và được cung cấp một cách minh bạch.\n•Kiểm tra xem liệu có bất kỳ thiếu sót nào trong quy trình xử lý dữ liệu hay\nkhông.\n2.Phù hợp với mục đích:\n1•Trực quan hóa phải phản ánh mục đích cụ thể của nó. Ví dụ, biểu đồ cột\nthích hợp để so sánh dữ liệu, trong khi biểu đồ đường thích hợp để theo dõi\nxu hướng thời gian.\n•Cân nhắc xem liệu trực quan hóa có phù hợp với đối tượng mục tiêu hay\nkhông.\n3.Rõ ràng và dễ hiểu:\n•Trực quan hóa nên truyền đạt thông điệp một cách rõ ràng và dễ hiểu.\n•Biểu đồ và đồ thị nên được thiết kế sao cho người xem có thể nhanh chóng\nnhận thức và hiểu thông tin.\n4.Sự tích hợp và liên kết:\n•Nếu có nhiều biểu đồ hoặc đồ thị, đảm bảo sự liên kết và tích hợp giữa chúng.\n•Mối quan hệ giữa các phần của trực quan hóa nên được làm rõ.\n5.Tương tác và điều hướng:\n•Sự tương tác, nếu có, nên được tích hợp một cách hợp lý để người xem có\nthể thăm dò dữ liệu.\n•Hệ thống điều hướng nên được xây dựng một cách dễ sử dụng.\n6.Thiết kế hấp dẫn:\n•Thiết kế đồ họa và màu sắc nên làm cho trực quan hóa trở nên hấp dẫn và\ndễ thu hút sự chú ý.\n•Sử dụng màu sắc một cách có ý nghĩa và tránh sự quá tải màu.\n7.Phân tích dữ liệu :\n•Trực quan hóa nên thể hiện sự thay đổi và xu hướng theo thời gian nếu có.\n•Mối quan hệ giữa các biến cần phải rõ ràng.\n•Những kết luận và câu chuyện liên quan .\n8.Tích hợp AI\n2",
+    "created_at": "2025-07-03T15:55:51.692215",
+    "updated_at": "2025-07-03T15:55:51.692215",
+    "additional_metadata": {
+      "total_characters": 1848.0,
+      "creation_date": "2025-07-03T22:55:51Z"
+    }
+  }
+}

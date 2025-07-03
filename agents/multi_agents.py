@@ -424,7 +424,7 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
             # Update the state with the corrected sequence
             if new_agents != current_agents:
                 log(f"Đã điều chỉnh thứ tự agent: {current_agents} -> {new_agents}")
-                state["chain_of_thought"].append(f"Điều chỉnh thứ tự agent để đảm bảo workflow chính xác: {', '.join(new_agents)}")
+                state["chain_of_thought"].append(f"Xác định các agent cần để xử lý tác vụ: {', '.join(new_agents)}")
                 state["current_agents"] = new_agents
         
         return state
@@ -1211,9 +1211,36 @@ LƯU Ý CUỐI CÙNG:
                     query = message.content
                     break
 
-            # Nếu tìm thấy file path, thêm vào query với format đúng
+            # Kiểm tra quyền truy cập file nếu tìm thấy file path
             if file_path:
-                # Sử dụng định dạng chuẩn cho TextExtractionAgent
+                # Import AccessControlManager
+                import sys
+                import os
+                current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                if current_dir not in sys.path:
+                    sys.path.insert(0, current_dir)
+                from utils.access_control import AccessControlManager
+                
+                # Lấy vai trò người dùng từ state hoặc session
+                user_role = state.get("user_role", "user")  # Mặc định là "user" nếu không có
+                
+                # Khởi tạo AccessControlManager
+                access_control_file = os.path.join(current_dir, "config", "access_control.json")
+                access_manager = AccessControlManager(access_control_file)
+                
+                # Kiểm tra quyền truy cập
+                has_access, reason = access_manager.check_file_access(file_path, user_role)
+                access_manager.log_access_attempt(file_path, user_role, has_access, reason)
+                
+                if not has_access:
+                    # Không có quyền truy cập, thông báo cho người dùng
+                    error_message = f"⚠️ Không thể trích xuất nội dung: {reason}"
+                    state["messages"].append(AIMessage(content=error_message))
+                    log(f"Access denied: {reason}", level='warning')
+                    return state
+                
+                # Có quyền truy cập, tiếp tục với trích xuất
+                log(f"Access granted for user role '{user_role}' to file '{file_path}'")
                 enhanced_query = f"Extract text from the file at path {file_path}"
                 log(f"Enhanced query with file path: {enhanced_query}")
             else:
@@ -1558,9 +1585,17 @@ LƯU Ý CUỐI CÙNG:
         
         return state
         
-    async def run(self, query: str, session_id: str = None) -> Dict[str, Any]:
+    async def run(self, query: str, session_id: str = None, user_role: str = "user") -> Dict[str, Any]:
         """
         Run the multi-agent system with the given query.
+        
+        Args:
+            query: Câu truy vấn của người dùng
+            session_id: ID phiên làm việc, được tạo tự động nếu không cung cấp
+            user_role: Vai trò của người dùng, mặc định là "user"
+        
+        Returns:
+            Dict chứa kết quả và trạng thái của hệ thống
         """
         try:
             # Set session ID
@@ -1575,7 +1610,8 @@ LƯU Ý CUỐI CÙNG:
                 "success_criteria_met": False,
                 "completed": False,
                 "used_tools": [],
-                "chain_of_thought": ["1. Bắt đầu xử lý yêu cầu: " + query]
+                "chain_of_thought": ["1. Bắt đầu xử lý yêu cầu: " + query],
+                "user_role": user_role  # Thêm vai trò người dùng vào state
             }
             
             # Plan which agents to use
@@ -1666,13 +1702,14 @@ LƯU Ý CUỐI CÙNG:
                 "chain_of_thought": [f"Lỗi: {str(e)}"]
             }
              
-    async def stream(self, query: str, session_id: str = "default") -> AsyncGenerator[Dict[str, Any], None]:
+    async def stream(self, query: str, session_id: str = "default", user_role: str = "user") -> AsyncGenerator[Dict[str, Any], None]:
         """
         Stream the multi-agent system's response.
         
         Args:
             query: The user's query
             session_id: Session ID for memory management
+            user_role: Vai trò của người dùng, mặc định là "user"
             
         Yields:
             Dict with partial response content and metadata
@@ -1693,7 +1730,8 @@ LƯU Ý CUỐI CÙNG:
                 "require_user_input": False,
                 "feedback_on_work": None,
                 "success_criteria_met": False,
-                "used_tools": []
+                "used_tools": [],
+                "user_role": user_role  # Thêm vai trò người dùng vào state
             }
             
             # Stream the graph execution
@@ -1774,13 +1812,19 @@ async def main():
         multi_agent = await MultiAgentSystem().initialize()
         session_id = "test_session_123"
         
-        # Test với câu truy vấn đơn giản
-        query1 = "Tóm tắt nội dung file liên quan đến Project-Final"
+        # Test với câu truy vấn đơn giản và vai trò người dùng
+        query1 = "Tìm file có tên liên quan đến project-final sau đó trích xuất nội dung"
         print(f"\nTest Query 1: {query1}")
         print("Running with worker-evaluator pattern...")
-        result1 = await multi_agent.run(query1, session_id=f"{session_id}_1")
-        print(f"Response: {result1}")
-        print(f"Used tools: {result1.get('used_tools', [])}")
+        
+        # Thử nghiệm với các vai trò khác nhau
+        user_roles = ["user", "admin", "manager"]
+        
+        for role in user_roles:
+            print(f"\nTesting with user role: {role}")
+            result1 = await multi_agent.run(query1, session_id=f"{session_id}_{role}", user_role=role)
+            print(f"Response for {role}: {result1.get('content', 'No content')}")
+            print(f"Used tools: {result1.get('used_tools', [])}")
         
         
         
