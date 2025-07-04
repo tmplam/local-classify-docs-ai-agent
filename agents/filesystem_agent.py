@@ -209,7 +209,7 @@ async def main():
     """Test function for the FilesystemAgent"""
     try:
         agent = await FilesystemAgent.create()
-        result = await agent.run("Tìm kiếm các file có tên project-final-DV.pdf", session_id="123")
+        result = await agent.run("Tìm kiếm các file có tên plan", session_id="123")
         print("Result:", result)
     except Exception as e:
         print(f"Error in main: {e}")

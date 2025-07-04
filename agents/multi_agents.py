@@ -51,6 +51,151 @@ class AgentState(TypedDict):
     feedback_on_work: Optional[str]  # Feedback from evaluator
     success_criteria_met: bool  # Whether success criteria have been met
     used_tools: List[str]  # Tools that have been used
+    chain_of_thought: List[str]  # Detailed execution steps
+    agent_results: Dict[str, str]  # Results from each agent
+    original_query: str  # Original user query for reflection
+
+class ReflectionAgent:
+    """
+    Agent chuyên về reflection - tổng hợp và trả lời cuối cùng cho người dùng
+    dựa trên kết quả từ các agent khác và query ban đầu.
+    """
+    
+    def __init__(self):
+        """Initialize the ReflectionAgent."""
+        self.model = gemini
+    
+    async def reflect_and_respond(self, state: AgentState) -> str:
+        """
+        Phân tích kết quả từ các agent và tạo câu trả lời cuối cùng có ngữ nghĩa tốt.
+        
+        Args:
+            state: Trạng thái hiện tại của hệ thống
+            
+        Returns:
+            Câu trả lời cuối cùng được tối ưu hóa cho người dùng
+        """
+        try:
+            # Lấy query ban đầu
+            original_query = state.get("original_query", "")
+            if not original_query:
+                # Fallback: tìm trong messages
+                for message in state["messages"]:
+                    if isinstance(message, HumanMessage):
+                        original_query = message.content
+                        break
+            
+            # Thu thập kết quả từ các agent
+            agent_results = state.get("agent_results", {})
+            used_tools = state.get("used_tools", [])
+            chain_of_thought = state.get("chain_of_thought", [])
+            
+            # Tạo tóm tắt các kết quả quan trọng
+            key_findings = []
+            file_found = None
+            extraction_result = None
+            classification_result = None
+            metadata_id = None
+            
+            # Phân tích kết quả từ từng agent
+            for message in state["messages"]:
+                if not isinstance(message, AIMessage):
+                    continue
+                    
+                content = message.content
+                
+                # Kết quả từ RAG/Filesystem agent - tìm file
+                if ("🗂️" in content or "🔍" in content) and "Tôi đã tìm thấy file:" in content:
+                    # Trích xuất đường dẫn file
+                    file_pattern = r'Tôi đã tìm thấy file:\s*([^\n\r]+)'
+                    file_matches = re.findall(file_pattern, content)
+                    if file_matches:
+                        file_found = file_matches[0].strip()
+                        key_findings.append(f"Đã tìm thấy file: {os.path.basename(file_found)}")
+                
+                # Kết quả từ Text Extraction agent
+                elif "📄" in content and "Kết quả trích xuất từ file" in content:
+                    # Trích xuất preview nội dung
+                    content_lines = content.split('\n')
+                    preview_lines = []
+                    found_content = False
+                    
+                    for line in content_lines:
+                        if found_content and line.strip():
+                            preview_lines.append(line.strip())
+                            if len(preview_lines) >= 3:  # Lấy 3 dòng đầu
+                                break
+                        elif "Kết quả trích xuất từ file" in line:
+                            found_content = True
+                    
+                    if preview_lines:
+                        preview = " ".join(preview_lines)[:100] + "..."
+                        extraction_result = preview
+                        key_findings.append(f"Đã trích xuất nội dung từ file")
+                
+                # Kết quả từ File Classification agent
+                elif "🏷️" in content and "Kết quả phân loại file" in content:
+                    # Trích xuất nhãn phân loại
+                    label_pattern = r'Kết quả phân loại file[^:]*:\s*([^\n\r]+)'
+                    label_matches = re.findall(label_pattern, content)
+                    if label_matches:
+                        classification_result = label_matches[0].strip()
+                        key_findings.append(f"Đã phân loại file: {classification_result}")
+                
+                # Kết quả từ Metadata agent
+                elif "📋" in content and "Đã lưu metadata thành công" in content:
+                    # Trích xuất metadata ID
+                    id_pattern = r'ID:\s*([a-f0-9-]+)'
+                    id_matches = re.findall(id_pattern, content)
+                    if id_matches:
+                        metadata_id = id_matches[0]
+                        key_findings.append(f"Đã lưu metadata với ID: {metadata_id}")
+            
+            # Tạo prompt cho reflection
+            reflection_prompt = f"""
+            Bạn là một AI assistant chuyên về tổng hợp kết quả và trả lời người dùng một cách tự nhiên, thân thiện.
+            
+            YÊU CẦU BAN ĐẦU CỦA NGƯỜI DÙNG:
+            "{original_query}"
+            
+            CÁC AGENT ĐÃ ĐƯỢC SỬ DỤNG:
+            {', '.join(used_tools)}
+            
+            KẾT QUẢ QUAN TRỌNG:
+            {chr(10).join(f"- {finding}" for finding in key_findings)}
+            
+            THÔNG TIN CHI TIẾT:
+            - File tìm thấy: {file_found if file_found else "Không có"}
+            - Nội dung trích xuất: {"Có" if extraction_result else "Không có"}
+            - Phân loại: {classification_result if classification_result else "Không có"}
+            - Metadata ID: {metadata_id if metadata_id else "Không có"}
+            
+            NHIỆM VỤ:
+            Hãy tạo một câu trả lời cuối cùng ngắn gọn, tự nhiên và thân thiện để trả lời yêu cầu ban đầu của người dùng.
+            Câu trả lời nên:
+            1. Xác nhận đã hoàn thành yêu cầu
+            2. Nêu rõ những gì đã làm được
+            3. Cung cấp thông tin quan trọng (tên file, metadata ID, v.v.)
+            4. Sử dụng ngôn ngữ tự nhiên, không liệt kê dưới dạng bullet points
+            5. Ngắn gọn, không quá 3-4 câu
+            
+            VÍ DỤ CẤU TRÚC:
+            "Tôi đã [hành động chính] và [kết quả]. File [tên file] đã được [xử lý như thế nào] với [thông tin quan trọng]."
+            
+            QUAN TRỌNG: Chỉ trả về câu trả lời cuối cùng, không giải thích thêm.
+            """
+            
+            # Gọi LLM để tạo reflection response
+            response = await self.model.ainvoke(reflection_prompt)
+            reflection_response = response.content.strip()
+            
+            log(f"Reflection response generated: {reflection_response}")
+            return reflection_response
+            
+        except Exception as e:
+            log(f"Error in reflection agent: {str(e)}", level='error')
+            # Fallback response
+            return f"Tôi đã hoàn thành yêu cầu của bạn. Đã sử dụng {len(state.get('used_tools', []))} công cụ để xử lý và đạt được kết quả mong muốn."
 
 class MultiAgentSystem:
     """
@@ -69,6 +214,7 @@ class MultiAgentSystem:
         self.agents = {}
         self.session_id = None
         self.all_tools = []
+        self.reflection_agent = ReflectionAgent()  # Thêm reflection agent
         
     async def initialize(self):
         """
@@ -140,6 +286,7 @@ class MultiAgentSystem:
         graph_builder.add_node("file_classification_agent", self.run_file_classification_agent)
         graph_builder.add_node("rag_agent", self.run_rag_agent)
         graph_builder.add_node("evaluator", self.evaluator)
+        graph_builder.add_node("reflection", self.run_reflection_agent)  # Thêm reflection node
         
         # Add edges
         graph_builder.add_edge(START, "worker")
@@ -175,17 +322,59 @@ class MultiAgentSystem:
         graph_builder.add_edge("file_classification_agent", "worker")
         graph_builder.add_edge("rag_agent", "worker")
         
-        # Evaluator can either end or route back to worker
+        # Evaluator routes to reflection instead of directly to END
         graph_builder.add_conditional_edges(
             "evaluator",
             self.route_based_on_evaluation,
-            {"complete": END, "continue": "worker"}
+            {"complete": "reflection", "continue": "worker"}  # Thay đổi: complete -> reflection
         )
+        
+        # Reflection agent ends the workflow
+        graph_builder.add_edge("reflection", END)
         
         # Compile the graph
         self.graph = graph_builder.compile(checkpointer=memory)
-        log("Multi-agent graph built successfully")
+        log("Multi-agent graph built successfully with reflection agent")
     
+    async def run_reflection_agent(self, state: AgentState) -> AgentState:
+        """
+        Run the reflection agent to create final response for user.
+        """
+        try:
+            log("Running ReflectionAgent...")
+            
+            # Track that we're using reflection agent
+            if "used_tools" not in state:
+                state["used_tools"] = []
+            state["used_tools"].append("reflection")
+            
+            # Generate reflection response
+            reflection_response = await self.reflection_agent.reflect_and_respond(state)
+            
+            # Add reflection response to messages
+            state["messages"].append(AIMessage(content=f"💭 {reflection_response}"))
+            
+            # Add to chain of thought
+            if "chain_of_thought" not in state:
+                state["chain_of_thought"] = []
+            state["chain_of_thought"].append(f"🤔 Reflection: Tạo câu trả lời cuối cùng cho người dùng")
+            
+            # Mark task as complete
+            state["task_complete"] = True
+            state["success_criteria_met"] = True
+            
+            log(f"ReflectionAgent completed: {reflection_response}")
+            return state
+            
+        except Exception as e:
+            log(f"Error in reflection agent: {str(e)}", level='error')
+            # Fallback response
+            fallback_response = "Tôi đã hoàn thành yêu cầu của bạn thành công."
+            state["messages"].append(AIMessage(content=f"💭 {fallback_response}"))
+            state["task_complete"] = True
+            state["success_criteria_met"] = True
+            return state
+
     async def worker(self, state: AgentState) -> AgentState:
         """
         Worker node that processes the user's query and determines next steps.
@@ -229,6 +418,13 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
         
         if not found_system_message:
             state["messages"] = [SystemMessage(content=system_message)] + state["messages"]
+        
+        # Store original query if not already stored
+        if not state.get("original_query"):
+            for message in state["messages"]:
+                if isinstance(message, HumanMessage):
+                    state["original_query"] = message.content
+                    break
         
         # Analyze the query to determine next steps
         last_message = state["messages"][-1]
@@ -424,7 +620,7 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
             # Update the state with the corrected sequence
             if new_agents != current_agents:
                 log(f"Đã điều chỉnh thứ tự agent: {current_agents} -> {new_agents}")
-                state["chain_of_thought"].append(f"Xác định các agent cần để xử lý tác vụ: {', '.join(new_agents)}")
+                state["chain_of_thought"].append(f"Điều chỉnh thứ tự agent để đảm bảo workflow chính xác: {', '.join(new_agents)}")
                 state["current_agents"] = new_agents
         
         return state
@@ -616,6 +812,11 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
             print(f"FilesystemAgent response: {response_content[:100]}...")
             state["messages"].append(AIMessage(content=response_content))
             
+            # Store result in agent_results
+            if "agent_results" not in state:
+                state["agent_results"] = {}
+            state["agent_results"]["filesystem"] = agent_response.content
+            
             # Check if filesystem agent found any results
             if "Không tìm thấy" in agent_response.content or "không biết" in agent_response.content.lower() or "không tìm thấy" in agent_response.content.lower():
                 print("Filesystem agent didn't find results. Trying RAG agent...")
@@ -628,6 +829,9 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
                     # Add RAG response to messages
                     rag_content = f"🔍 Tìm kiếm theo nội dung file:\n\n{rag_result['content']}"
                     state["messages"].append(AIMessage(content=rag_content))
+                    
+                    # Store RAG result
+                    state["agent_results"]["rag"] = rag_result['content']
                     
                     # Add RAG to used tools
                     if "rag" not in state["used_tools"]:
@@ -774,11 +978,12 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
                 ))
             else:
                 state["messages"].append(AIMessage(content=response_content))
-                
-            # Mark task as complete since RAG search is typically a terminal operation
-            state["task_complete"] = True
-            state["require_user_input"] = False
             
+            # Store result in agent_results
+            if "agent_results" not in state:
+                state["agent_results"] = {}
+            state["agent_results"]["rag"] = response_content
+                
             return state
             
         except Exception as e:
@@ -786,8 +991,6 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
             state["messages"].append(AIMessage(
                 content=f"Có lỗi xảy ra khi tìm kiếm nội dung: {str(e)}"
             ))
-            state["task_complete"] = True
-            state["require_user_input"] = False
             return state
 
     async def run_metadata_agent(self, state: AgentState) -> AgentState:
@@ -1110,6 +1313,11 @@ LƯU Ý CUỐI CÙNG:
                 log(f"MetadataAgent response: {formatted_response[:200]}...")
                 state["messages"].append(AIMessage(content=formatted_response))
                 
+                # Store result in agent_results
+                if "agent_results" not in state:
+                    state["agent_results"] = {}
+                state["agent_results"]["metadata"] = response_content
+                
                 # Store metadata info in the state for future reference
                 if 'metadata' not in state:
                     state['metadata'] = {}
@@ -1123,10 +1331,6 @@ LƯU Ý CUỐI CÙNG:
                 else:
                     log("No metadata ID to add to state", level='warning')
                 
-                # Mark task as complete
-                state["task_complete"] = True
-                state["require_user_input"] = False
-                
                 return state
                 
             except Exception as e:
@@ -1135,8 +1339,6 @@ LƯU Ý CUỐI CÙNG:
                 state["messages"].append(AIMessage(
                     content=f"[Lỗi] {error_msg}. Vui lòng thử lại hoặc kiểm tra kết nối MCP server."
                 ))
-                state["task_complete"] = True
-                state["require_user_input"] = True
                 return state
 
         except Exception as e:
@@ -1343,6 +1545,11 @@ LƯU Ý CUỐI CÙNG:
             log(f"TextExtractionAgent response: {response_content[:100]}...")
             state["messages"].append(AIMessage(content=response_content))
             
+            # Store result in agent_results
+            if "agent_results" not in state:
+                state["agent_results"] = {}
+            state["agent_results"]["text_extraction"] = content
+            
             # Analyze the response to suggest next agent
             log("Analyzing response to suggest next agent...")
             next_agent = await self._suggest_next_agent(content, state)
@@ -1360,9 +1567,6 @@ LƯU Ý CUỐI CÙNG:
             error_message = f"Xin lỗi, tôi gặp lỗi khi trích xuất nội dung: {str(e)}"
             state["messages"].append(AIMessage(content=error_message))
             return state
-            
-    # The run_rag_agent method is already defined above (lines 653-703)
-    # This duplicate definition was causing the 'Unknown agent: rag' error
             
     async def run_file_classification_agent(self, state: AgentState):
         """
@@ -1478,6 +1682,11 @@ LƯU Ý CUỐI CÙNG:
             
             # Thêm kết quả phân loại vào state
             state["messages"].append(AIMessage(content=response_content))
+            
+            # Store result in agent_results
+            if "agent_results" not in state:
+                state["agent_results"] = {}
+            state["agent_results"]["file_classification"] = classification_result
             
             # Analyze the response to suggest next agent
             log("Analyzing response to suggest next agent...")
@@ -1610,7 +1819,9 @@ LƯU Ý CUỐI CÙNG:
                 "success_criteria_met": False,
                 "completed": False,
                 "used_tools": [],
-                "chain_of_thought": ["1. Bắt đầu xử lý yêu cầu: " + query],
+                "chain_of_thought": ["🔍1. Bắt đầu xử lý yêu cầu: " + query],
+                "agent_results": {},
+                "original_query": query,
                 "user_role": user_role  # Thêm vai trò người dùng vào state
             }
             
@@ -1621,7 +1832,7 @@ LƯU Ý CUỐI CÙNG:
             # Validate and fix agent sequence if needed
             state = await self._validate_agent_sequence(state)
             log(f"Kế hoạch agent sau khi kiểm tra: {state['current_agents']}")
-            state["chain_of_thought"].append(f"2. Lập kế hoạch sử dụng các agent: {', '.join(state['current_agents'])}")
+            state["chain_of_thought"].append(f"🧠2. Lập kế hoạch sử dụng các agent: {', '.join(state['current_agents'])}")
             
             # Run the agents in the planned order
             step_count = 3
@@ -1631,7 +1842,7 @@ LƯU Ý CUỐI CÙNG:
                 agent_name = state["current_agents"].pop(0)
                 agent_execution_order.append(agent_name)
                 log(f"Running agent: {agent_name} (Thứ tự thực thi: {agent_execution_order})")
-                state["chain_of_thought"].append(f"{step_count}. Đang chạy agent: {agent_name}")
+                state["chain_of_thought"].append(f"⚡{step_count}. Đang chạy agent: {agent_name}")
                 
                 # Add execution order to state for later analysis
                 if "agent_execution_order" not in state:
@@ -1663,34 +1874,47 @@ LƯU Ý CUỐI CÙNG:
                         summary = latest_message[:197] + "..."
                     else:
                         summary = latest_message
-                    state["chain_of_thought"].append(f"{step_count}a. Kết quả từ {agent_name}: {summary}")
+                    state["chain_of_thought"].append(f"✨{step_count}a. Kết quả từ {agent_name}: {summary}")
                 
                 step_count += 1
             
+            # Run reflection agent to create final response
+            log("Running reflection agent for final response...")
+            state["chain_of_thought"].append(f"🤔{step_count}. Đang tạo câu trả lời cuối cùng...")
+            state = await self.run_reflection_agent(state)
+            
             # Mark as completed
             state["completed"] = True
-            state["chain_of_thought"].append(f"{step_count}. Hoàn thành xử lý")
+            state["chain_of_thought"].append(f"🚀{step_count + 1}. Hoàn thành xử lý")
             
             # Generate execution summary
             agent_summary = ""
             if "agent_execution_order" in state:
                 agent_summary = f"Thứ tự thực thi các agent: {', '.join(state['agent_execution_order'])}"
                 log(f"Agent execution summary: {agent_summary}")
-                state["chain_of_thought"].append(f"Tóm tắt thực thi: {agent_summary}")
+                state["chain_of_thought"].append(f"🔍Tóm tắt thực thi: {agent_summary}")
             
             # Add used tools to the summary
             log(f"Used tools: {state.get('used_tools', [])}")
             
-            # Return the final state with execution summary
+            # Get the final reflection response for the main content
+            final_reflection_content = ""
+            for message in reversed(state["messages"]):
+                if isinstance(message, AIMessage) and message.content.startswith("💭"):
+                    final_reflection_content = message.content[2:].strip()  # Remove 💭 emoji
+                    break
+            
+            # Return the final state with reflection as main content
             return {
                 "response_type": "data",
                 "is_task_complete": True,
                 "require_user_input": False,
-                "content": state["messages"][-1].content if state["messages"] else "",
+                "content": final_reflection_content if final_reflection_content else state["messages"][-1].content,
                 "state": state,
                 "chain_of_thought": state["chain_of_thought"],
                 "agent_execution_order": state.get("agent_execution_order", []),
-                "used_tools": state.get("used_tools", [])
+                "used_tools": state.get("used_tools", []),
+                "agent_results": state.get("agent_results", {})
             }
         except Exception as e:
             log(f"Error running multi-agent system: {e}", level='error')
@@ -1699,7 +1923,7 @@ LƯU Ý CUỐI CÙNG:
                 "content": f"Xin lỗi, đã xảy ra lỗi: {str(e)}",
                 "is_task_complete": False,
                 "require_user_input": False,
-                "chain_of_thought": [f"Lỗi: {str(e)}"]
+                "chain_of_thought": [f"❌Lỗi: {str(e)}"]
             }
              
     async def stream(self, query: str, session_id: str = "default", user_role: str = "user") -> AsyncGenerator[Dict[str, Any], None]:
@@ -1731,6 +1955,8 @@ LƯU Ý CUỐI CÙNG:
                 "feedback_on_work": None,
                 "success_criteria_met": False,
                 "used_tools": [],
+                "agent_results": {},
+                "original_query": query,
                 "user_role": user_role  # Thêm vai trò người dùng vào state
             }
             
@@ -1747,36 +1973,54 @@ LƯU Ý CUỐI CÙNG:
                             break
                     
                     if latest_message:
+                        # Check if this is the final reflection message
+                        is_reflection = latest_message.content.startswith("💭")
+                        content = latest_message.content[2:].strip() if is_reflection else latest_message.content
+                        
                         # Yield the partial response
                         yield {
                             "response_type": "text",
-                            "content": latest_message.content,
+                            "content": content,
                             "is_task_complete": chunk.get("success_criteria_met", False),
                             "require_user_input": chunk.get("require_user_input", False),
-                            "is_partial": True,
-                            "used_tools": chunk.get("used_tools", [])
+                            "is_partial": not is_reflection,  # Reflection is the final response
+                            "used_tools": chunk.get("used_tools", []),
+                            "is_reflection": is_reflection
                         }
             
             # Yield the final complete response
             final_state = await self.graph.ainvoke(initial_state, config=config)
             
-            # Find the last non-evaluator message
+            # Find the final reflection message
             final_message = None
             for message in reversed(final_state["messages"]):
-                if isinstance(message, AIMessage) and not message.content.startswith("[Đánh giá nội bộ:"):
+                if isinstance(message, AIMessage) and message.content.startswith("💭"):
                     final_message = message
                     break
+            
+            # If no reflection found, use the last non-evaluator message
+            if not final_message:
+                for message in reversed(final_state["messages"]):
+                    if isinstance(message, AIMessage) and not message.content.startswith("[Đánh giá nội bộ:"):
+                        final_message = message
+                        break
             
             if not final_message:
                 final_message = final_state["messages"][-1] if final_state["messages"] else AIMessage(content="Không có phản hồi từ hệ thống.")
             
+            # Extract content, removing emoji if it's a reflection
+            content = final_message.content
+            if content.startswith("💭"):
+                content = content[2:].strip()
+            
             yield {
                 "response_type": "text",
-                "content": final_message.content,
+                "content": content,
                 "is_task_complete": final_state.get("success_criteria_met", False),
                 "require_user_input": final_state.get("require_user_input", False),
                 "is_partial": False,
-                "used_tools": final_state.get("used_tools", [])
+                "used_tools": final_state.get("used_tools", []),
+                "is_reflection": True
             }
             
         except Exception as e:
@@ -1805,30 +2049,39 @@ class HRAgent:
 
 async def main():
     """
-    Test the enhanced worker-evaluator multi-agent system.
+    Test the enhanced worker-evaluator multi-agent system with reflection.
     """
     try:
         # Initialize the multi-agent system
         multi_agent = await MultiAgentSystem().initialize()
-        session_id = "test_session_123"
+        session_id = "test_session_reflection_123"
         
-        # Test với câu truy vấn đơn giản và vai trò người dùng
-        query1 = "Tìm file có tên liên quan đến project-final sau đó trích xuất nội dung"
+        # Test với câu truy vấn metadata và vai trò người dùng
+        query1 = "Tìm file có nội dung liên quan đến trực quan hóa dữ liệu sau đó save metadata"
         print(f"\nTest Query 1: {query1}")
-        print("Running with worker-evaluator pattern...")
+        print("Running with reflection agent...")
         
-        # Thử nghiệm với các vai trò khác nhau
-        user_roles = ["user", "admin", "manager"]
+        # Test với vai trò admin
+        result1 = await multi_agent.run(query1, session_id=f"{session_id}_admin", user_role="admin")
+        print(f"\nMain Response: {result1.get('content', 'No content')}")
+        print(f"Used tools: {result1.get('used_tools', [])}")
+        print(f"Agent execution order: {result1.get('agent_execution_order', [])}")
         
-        for role in user_roles:
-            print(f"\nTesting with user role: {role}")
-            result1 = await multi_agent.run(query1, session_id=f"{session_id}_{role}", user_role=role)
-            print(f"Response for {role}: {result1.get('content', 'No content')}")
-            print(f"Used tools: {result1.get('used_tools', [])}")
+        if result1.get('chain_of_thought'):
+            print("\nChain of Thought:")
+            for i, thought in enumerate(result1['chain_of_thought'], 1):
+                print(f"{i}. {thought}")
         
+        # Test câu truy vấn đơn giản hơn
+        query2 = "Tìm file có tên project-final"
+        print(f"\n\nTest Query 2: {query2}")
+        print("Running simple search query...")
         
+        result2 = await multi_agent.run(query2, session_id=f"{session_id}_simple", user_role="user")
+        print(f"\nMain Response: {result2.get('content', 'No content')}")
+        print(f"Used tools: {result2.get('used_tools', [])}")
         
-        print("\nMulti-agent tests completed successfully!")
+        print("\nMulti-agent tests with reflection completed successfully!")
         
     except Exception as e:
         print(f"Error in main: {e}")
@@ -1836,4 +2089,5 @@ async def main():
         traceback.print_exc()
 
 if __name__ == "__main__":
+    import uuid
     asyncio.run(main())
