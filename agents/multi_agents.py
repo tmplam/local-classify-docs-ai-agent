@@ -187,23 +187,40 @@ class ReflectionAgent:
                 
                 # Kết quả từ Metadata agent
                 elif "📋" in content and "Đã lưu metadata thành công" in content:
-                    # Trích xuất metadata ID
+                    # Trích xuất metadata ID từ message content
                     import re
                     id_pattern = r'ID:\s*([a-f0-9-]+)'
                     id_matches = re.findall(id_pattern, content)
-                    
                     if id_matches:
                         metadata_ids.extend(id_matches)
-                        
-                        # Cập nhật metadata ID cho các file trong detailed_files
-                        for i, file_info in enumerate(detailed_files):
-                            if i < len(metadata_ids):
-                                file_info["metadata_id"] = metadata_ids[i]
-                        
-                        if file_count > 1:
-                            key_findings.append(f"Đã lưu metadata cho {file_count} files")
-                        else:
-                            key_findings.append(f"Đã lưu metadata với ID: {metadata_ids[0]}")
+            
+            # Kiểm tra metadata IDs từ state (nguồn tin cậy nhất)
+            if 'metadata' in state and 'metadata_ids' in state['metadata']:
+                stored_metadata_ids = state['metadata']['metadata_ids']
+                if stored_metadata_ids:
+                    # Sử dụng metadata IDs từ state thay vì từ message content
+                    metadata_ids = stored_metadata_ids
+                    log(f"ReflectionAgent debug - Found {len(metadata_ids)} metadata IDs in state: {metadata_ids}")
+                    
+                    # Cập nhật metadata ID cho các file trong detailed_files
+                    for i, file_info in enumerate(detailed_files):
+                        if i < len(metadata_ids):
+                            file_info["metadata_id"] = metadata_ids[i]
+                    
+                    if file_count > 1:
+                        key_findings.append(f"Đã lưu metadata cho {file_count} files")
+                    else:
+                        key_findings.append(f"Đã lưu metadata với ID: {metadata_ids[0]}")
+            elif metadata_ids:
+                # Fallback: sử dụng metadata IDs từ message content nếu không có trong state
+                for i, file_info in enumerate(detailed_files):
+                    if i < len(metadata_ids):
+                        file_info["metadata_id"] = metadata_ids[i]
+                
+                if file_count > 1:
+                    key_findings.append(f"Đã lưu metadata cho {file_count} files")
+                else:
+                    key_findings.append(f"Đã lưu metadata với ID: {metadata_ids[0]}")
             
             # Tạo phần mô tả chi tiết về các file đã tìm thấy
             file_info = ""
