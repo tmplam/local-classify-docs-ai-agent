@@ -1,11 +1,9 @@
 {
     
     "special_files": {
-        "project-final-DV.pdf": ["admin", "hr"],
-        "project-final-DV-copy.pdf": ["admin"],
-        "plan2023.pdf": ["admin", "hr"],
+        "marketing2024.pdf": ["admin", "hr"],
         "plan2024.pdf": ["admin", "hr"],
-        "plan2025.pdf": ["admin", "hr"]
-
+        "plan2023.pdf": ["admin", "hr"],
+        "HumanResource2024.pdf": ["admin", "hr"]
     }
 }

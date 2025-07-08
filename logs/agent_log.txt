@@ -1,59 +1,236 @@
-=== Log started at 2025-07-04 00:10:34 ===
+=== Log started at 2025-07-08 20:00:54 ===
 
-2025-07-04 00:12:00 - INFO - Multi-agent graph built successfully with reflection agent
-2025-07-04 00:12:32 - INFO - Phát hiện tìm kiếm theo nội dung: tìm file có nội dung liên quan đến kế hoạch
-2025-07-04 00:12:33 - INFO - Kế hoạch agent dựa trên LLM: ['rag']
-2025-07-04 00:12:33 - INFO - Kế hoạch agent ban đầu: ['rag']
-2025-07-04 00:12:33 - INFO - Validating agent sequence: ['rag']
-2025-07-04 00:12:33 - INFO - Kế hoạch agent sau khi kiểm tra: ['rag']
-2025-07-04 00:12:33 - INFO - Running agent: rag (Thứ tự thực thi: ['rag'])
-2025-07-04 00:12:33 - INFO - Running RAGAgent with query: Tìm file có nội dung liên quan đến kế hoạch
-2025-07-04 00:12:33 - INFO - Searching with RAGAgent...
-2025-07-04 00:12:33 - INFO - RAGAgent search completed
-2025-07-04 00:12:33 - INFO - RAG agent found 2 file paths: ['C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data\\plan2024.pdf', 'C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data\\project-final-DV.pdf']
-2025-07-04 00:12:33 - INFO - Running reflection agent for final response...
-2025-07-04 00:12:33 - INFO - Running ReflectionAgent...
-2025-07-04 00:12:34 - INFO - Reflection response generated: Chào bạn, mình đã tìm kiếm các file liên quan đến kế hoạch nhưng rất tiếc là không tìm thấy file nào phù hợp với yêu cầu của bạn.
-2025-07-04 00:12:34 - INFO - ReflectionAgent completed: Chào bạn, mình đã tìm kiếm các file liên quan đến kế hoạch nhưng rất tiếc là không tìm thấy file nào phù hợp với yêu cầu của bạn.
-2025-07-04 00:12:34 - INFO - Agent execution summary: Thứ tự thực thi các agent: rag
-2025-07-04 00:12:34 - INFO - Used tools: ['rag', 'reflection']
-2025-07-04 00:13:46 - INFO - Phát hiện tìm kiếm theo nội dung: tìm file có tên liên quan đến plan
-2025-07-04 00:13:47 - INFO - Kế hoạch agent dựa trên LLM: ['filesystem']
-2025-07-04 00:13:47 - INFO - Kế hoạch agent ban đầu: ['filesystem']
-2025-07-04 00:13:47 - INFO - Validating agent sequence: ['filesystem']
-2025-07-04 00:13:47 - INFO - Kế hoạch agent sau khi kiểm tra: ['filesystem']
-2025-07-04 00:13:47 - INFO - Running agent: filesystem (Thứ tự thực thi: ['filesystem'])
-2025-07-04 00:13:47 - INFO - Running FilesystemAgent with query: Tìm file có tên liên quan đến plan
-2025-07-04 00:13:47 - INFO - Waiting for FilesystemAgent to complete...
-2025-07-04 00:13:57 - INFO - FilesystemAgent completed
-2025-07-04 00:13:58 - INFO - Running agent: file_classification (Thứ tự thực thi: ['filesystem', 'file_classification'])
-2025-07-04 00:13:58 - INFO - Found file path from FilesystemAgent: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\plan2023.pdf
-2025-07-04 00:13:58 - INFO - Using file path for classification: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\plan2023.pdf
-2025-07-04 00:13:58 - INFO - Running FileClassificationAgent with query: Hãy phân loại file: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\plan2023.pdf...
-2025-07-04 00:14:00 - INFO - FileClassificationAgent completed
-2025-07-04 00:14:00 - INFO - Raw FileClassificationAgent response: {'response_type': 'text', 'is_task_complete': False, 'require_user_input': True, 'content': 'Hãy phân loại file: C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data\\plan2023.pdf'}
-2025-07-04 00:14:00 - INFO - Extracted classification from response dict: Hãy phân loại file: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\plan2023.pdf
-2025-07-04 00:14:00 - INFO - FileClassificationAgent response: 🏷️ Kết quả phân loại file C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\plan2023.pdf: Hãy phân loại file: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\plan2023.pdf
-2025-07-04 00:14:00 - INFO - Analyzing response to suggest next agent...
-2025-07-04 00:14:01 - INFO - No additional agent suggested or already in use
-2025-07-04 00:14:01 - INFO - Running reflection agent for final response...
-2025-07-04 00:14:01 - INFO - Running ReflectionAgent...
-2025-07-04 00:14:02 - INFO - Reflection response generated: Chào bạn, mình đã tìm thấy file có tên liên quan đến "plan" là plan2023.pdf tại đường dẫn C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\plan2023.pdf. Mình cũng đã tiến hành phân loại file này rồi nhé.
-2025-07-04 00:14:02 - INFO - ReflectionAgent completed: Chào bạn, mình đã tìm thấy file có tên liên quan đến "plan" là plan2023.pdf tại đường dẫn C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\plan2023.pdf. Mình cũng đã tiến hành phân loại file này rồi nhé.
-2025-07-04 00:14:02 - INFO - Agent execution summary: Thứ tự thực thi các agent: filesystem, file_classification
-2025-07-04 00:14:02 - INFO - Used tools: ['filesystem', 'file_classification', 'reflection']
-2025-07-04 00:15:01 - INFO - Phát hiện tìm kiếm theo nội dung: tìm tất cả các file có tên liên quan đến plan
-2025-07-04 00:15:02 - INFO - Kế hoạch agent dựa trên LLM: ['filesystem']
-2025-07-04 00:15:02 - INFO - Kế hoạch agent ban đầu: ['filesystem']
-2025-07-04 00:15:02 - INFO - Validating agent sequence: ['filesystem']
-2025-07-04 00:15:02 - INFO - Kế hoạch agent sau khi kiểm tra: ['filesystem']
-2025-07-04 00:15:02 - INFO - Running agent: filesystem (Thứ tự thực thi: ['filesystem'])
-2025-07-04 00:15:02 - INFO - Running FilesystemAgent with query: Tìm tất cả các file có tên liên quan đến plan
-2025-07-04 00:15:02 - INFO - Waiting for FilesystemAgent to complete...
-2025-07-04 00:15:12 - INFO - FilesystemAgent completed
-2025-07-04 00:15:13 - INFO - Running reflection agent for final response...
-2025-07-04 00:15:13 - INFO - Running ReflectionAgent...
-2025-07-04 00:15:14 - INFO - Reflection response generated: Chào bạn, mình đã tìm thấy một file liên quan đến "plan" rồi nhé! Đó là file "plan2023.pdf" nằm trong thư mục của bạn.
-2025-07-04 00:15:14 - INFO - ReflectionAgent completed: Chào bạn, mình đã tìm thấy một file liên quan đến "plan" rồi nhé! Đó là file "plan2023.pdf" nằm trong thư mục của bạn.
-2025-07-04 00:15:14 - INFO - Agent execution summary: Thứ tự thực thi các agent: filesystem
-2025-07-04 00:15:14 - INFO - Used tools: ['filesystem', 'reflection']
+2025-07-08 20:02:11 - INFO - Loading existing RAG index from cache...
+2025-07-08 20:02:11 - INFO - RAG index loaded successfully from cache
+2025-07-08 20:02:11 - INFO - Multi-agent graph built successfully with reflection agent
+2025-07-08 20:02:21 - INFO - Phát hiện tìm kiếm theo tên file: tìm file có ‘kế hoạch 2024
+2025-07-08 20:02:23 - INFO - Kế hoạch agent dựa trên LLM: ['filesystem']
+2025-07-08 20:02:23 - INFO - Kế hoạch agent ban đầu: ['filesystem']
+2025-07-08 20:02:23 - INFO - Validating agent sequence: ['filesystem']
+2025-07-08 20:02:23 - INFO - Kế hoạch agent sau khi kiểm tra: ['filesystem']
+2025-07-08 20:02:23 - INFO - Running agent: filesystem (Thứ tự thực thi: ['filesystem'])
+2025-07-08 20:02:23 - INFO - Running FilesystemAgent with query: Tìm file có ‘kế hoạch 2024
+2025-07-08 20:02:23 - INFO - Waiting for FilesystemAgent to complete...
+2025-07-08 20:02:32 - INFO - FilesystemAgent completed
+2025-07-08 20:02:32 - INFO - FilesystemAgent response: 🗂️ Không biết.
+2025-07-08 20:02:32 - INFO - RAGAgent processing query: 'Tìm file có ‘kế hoạch 2024'
+2025-07-08 20:02:32 - INFO - Search query words: ['‘kế', 'hoạch', '2024'], exact phrases: ['‘kế hoạch 2024', '‘kế hoạch 2024', '‘kế hoạch', 'hoạch 2024']
+2025-07-08 20:02:32 - INFO - Found 2 relevant documents across multiple files
+2025-07-08 20:02:32 - INFO - RAGAgent found 2 results for query: 'Tìm file có ‘kế hoạch 2024'
+2025-07-08 20:02:32 - INFO - Top result: plan2024.pdf, score: 19
+2025-07-08 20:02:33 - INFO - Running reflection agent for final response...
+2025-07-08 20:02:33 - INFO - Running ReflectionAgent...
+2025-07-08 20:02:35 - INFO - ReflectionAgent debug - Final file count for response: 0, detailed_files: 0
+2025-07-08 20:02:35 - INFO - Reflection response generated: Chào bạn, rất tiếc là mình không tìm thấy file nào có tên "kế hoạch 2024" trong hệ thống. Bạn có muốn thử với các từ khóa khác không?
+2025-07-08 20:02:35 - INFO - ReflectionAgent completed: Chào bạn, rất tiếc là mình không tìm thấy file nào có tên "kế hoạch 2024" trong hệ thống. Bạn có muốn thử với các từ khóa khác không?
+2025-07-08 20:02:35 - INFO - Used tools: ['filesystem', 'rag', 'reflection']
+2025-07-08 20:03:49 - INFO - Phát hiện tìm kiếm theo nội dung: tìm file có nội dung liên quan đến kế hoạch
+2025-07-08 20:03:51 - INFO - Kế hoạch agent dựa trên LLM: ['rag']
+2025-07-08 20:03:51 - INFO - Kế hoạch agent ban đầu: ['rag']
+2025-07-08 20:03:51 - INFO - Validating agent sequence: ['rag']
+2025-07-08 20:03:51 - INFO - Kế hoạch agent sau khi kiểm tra: ['rag']
+2025-07-08 20:03:51 - INFO - Running agent: rag (Thứ tự thực thi: ['rag'])
+2025-07-08 20:03:51 - INFO - Running RAGAgent with query: Tìm file có nội dung liên quan đến kế hoạch
+2025-07-08 20:03:51 - INFO - Searching with RAGAgent...
+2025-07-08 20:03:51 - INFO - RAGAgent processing query: 'Tìm file có nội dung liên quan đến kế hoạch'
+2025-07-08 20:03:51 - INFO - Search query words: ['kế', 'hoạch'], exact phrases: ['kế hoạch', 'kế hoạch', 'kế hoạch']
+2025-07-08 20:03:51 - INFO - Found 2 relevant documents across multiple files
+2025-07-08 20:03:51 - INFO - RAGAgent found 2 results for query: 'Tìm file có nội dung liên quan đến kế hoạch'
+2025-07-08 20:03:51 - INFO - Top result: plan2024.pdf, score: 84
+2025-07-08 20:03:51 - INFO - RAGAgent search completed
+2025-07-08 20:03:51 - INFO - RAG agent found 2 file paths: ['C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data\\plan2024.pdf', 'C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data\\marketing2024.pdf']
+2025-07-08 20:03:51 - INFO - Running reflection agent for final response...
+2025-07-08 20:03:51 - INFO - Running ReflectionAgent...
+2025-07-08 20:03:51 - INFO - ReflectionAgent debug - Using processed_files: 2 files
+2025-07-08 20:03:51 - INFO - ReflectionAgent debug - Created detailed_files for 2 files
+2025-07-08 20:03:52 - INFO - ReflectionAgent debug - Final file count for response: 2, detailed_files: 2
+2025-07-08 20:03:52 - INFO - Reflection response generated: Chào bạn, mình đã tìm thấy 2 files liên quan đến kế hoạch của bạn rồi nhé! Đó là file "plan2024.pdf" và "marketing2024.pdf". Hy vọng chúng hữu ích cho bạn!
+2025-07-08 20:03:52 - INFO - ReflectionAgent completed: Chào bạn, mình đã tìm thấy 2 files liên quan đến kế hoạch của bạn rồi nhé! Đó là file "plan2024.pdf" và "marketing2024.pdf". Hy vọng chúng hữu ích cho bạn!
+2025-07-08 20:03:52 - INFO - Used tools: ['rag', 'reflection']
+2025-07-08 20:04:38 - INFO - Phát hiện tìm kiếm theo nội dung: tìm file có nội dung liên quan đến kế hoạch sau đó lưu metadata lại
+2025-07-08 20:04:39 - INFO - Kế hoạch agent dựa trên LLM: ['rag', 'metadata', 'text_extraction', 'file_classification']
+2025-07-08 20:04:39 - INFO - Kế hoạch agent ban đầu: ['rag', 'metadata', 'text_extraction', 'file_classification']
+2025-07-08 20:04:39 - INFO - Validating agent sequence: ['rag', 'metadata', 'text_extraction', 'file_classification']
+2025-07-08 20:04:39 - INFO - Phát hiện metadata agent trong kế hoạch, kiểm tra thứ tự
+2025-07-08 20:04:39 - INFO - Sử dụng rag làm agent tìm kiếm trong workflow metadata
+2025-07-08 20:04:39 - INFO - Đã điều chỉnh thứ tự agent: ['rag', 'metadata', 'text_extraction', 'file_classification'] -> ['rag', 'text_extraction', 'file_classification', 'metadata']
+2025-07-08 20:04:39 - INFO - Kế hoạch agent sau khi kiểm tra: ['rag', 'text_extraction', 'file_classification', 'metadata']
+2025-07-08 20:04:39 - INFO - Running agent: rag (Thứ tự thực thi: ['rag'])
+2025-07-08 20:04:39 - INFO - Running RAGAgent with query: Tìm file có nội dung liên quan đến kế hoạch sau đó lưu metadata lại
+2025-07-08 20:04:39 - INFO - Searching with RAGAgent...
+2025-07-08 20:04:39 - INFO - RAGAgent processing query: 'Tìm file có nội dung liên quan đến kế hoạch sau đó lưu metadata lại'
+2025-07-08 20:04:39 - INFO - Search query words: ['kế', 'hoạch', 'lưu', 'metadata', 'lại'], exact phrases: ['kế hoạch lưu metadata lại', 'kế hoạch lưu metadata lại', 'kế hoạch', 'hoạch lưu', 'lưu metadata', 'metadata lại']
+2025-07-08 20:04:39 - INFO - Found 1 relevant documents across multiple files
+2025-07-08 20:04:39 - INFO - RAGAgent found 1 results for query: 'Tìm file có nội dung liên quan đến kế hoạch sau đó lưu metadata lại'
+2025-07-08 20:04:39 - INFO - Top result: marketing2024.pdf, score: 3
+2025-07-08 20:04:39 - INFO - RAGAgent search completed
+2025-07-08 20:04:39 - INFO - RAG agent found 1 file paths: ['C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data\\marketing2024.pdf']
+2025-07-08 20:04:39 - INFO - Running agent: text_extraction (Thứ tự thực thi: ['rag', 'text_extraction'])
+2025-07-08 20:04:39 - INFO - Checking message for file paths: Tôi đã tìm thấy file: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf...
+2025-07-08 20:04:39 - INFO - Found agent message with standard format for single file
+2025-07-08 20:04:39 - INFO - Extracted full file path: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf
+2025-07-08 20:04:39 - INFO - Access granted for user role 'hr' to file 'C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf'
+2025-07-08 20:04:39 - INFO - Enhanced query with file paths: Extract text from the file at path C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketin...
+2025-07-08 20:04:39 - INFO - Waiting for TextExtractionAgent to complete...
+2025-07-08 20:04:52 - INFO - TextExtractionAgent completed
+2025-07-08 20:04:52 - INFO - Raw TextExtractionAgent response: {'response_type': 'data', 'is_task_complete': True, 'require_user_input': False, 'content': 'Dưới đây là nội dung mẫu cho file kế hoạch Marketing 2024  (Marketing Plan 2024), có th ể \ndùng cho doanh nghi ệp vừa và nhỏ (SME) ho ặc điều chỉnh theo ngành c ụ thể như khách \nsạn, bán lẻ, giáo dục... \n \n     KẾ HOẠCH MARKETING 2024  \n1. Tổng quan chi ến lược \n• Mục tiêu tổng thể: \no Tăng trưởng doanh thu 20% so v ới 2023  \no Tăng 30% lư ợng khách hàng m ới \no Củng cố độ nhận diện thương hi ệu trên các n ền tảng số \n• Thông đi ệp chính (Key Message):  \no “Chất lượng – Uy tín – Giá trị bền vững”  \no (Điều chỉnh theo ngành, ví d ụ: “Trải nghiệm nghỉ dưỡng đẳng cấp giữa lòng \nthành ph ố”) \n \n2. Phân tích th ị trường \n• Khách hàng m ục tiêu:  \no Giới trẻ 18–30 tuổi, yêu thích tr ải nghiệm số \no Doanh nhân trung niên, ưu tiên ch ất lượng & dịch vụ \n• Xu hướng năm 2024:  \no Tăng sử dụng TikTok Shop & Influencer nano  \no Hành vi tìm ki ếm đa kênh: t ừ Google, YouTube đ ến Zalo  \no Ưu tiên s ản phẩm xanh, thân thi ện môi trư ờng \n \n3. Chiến lược kênh marketing  Kênh  Mục tiêu chính  Nội dung dự kiến \nFacebook  Tăng nhận diện thương hi ệu Bài viết cảm xúc, minigame, livestream bán \nhàng  \nTikTok  Tiếp cận giới trẻ, viral \ncontent  Video ngắn (10–30s), thử thách trend  \nWebsite/SEO  Tối ưu chuy ển đổi & tìm \nkiếm Blog hướng dẫn, landing page khuy ến mãi  \nEmail/Zalo  Chăm sóc khách hàng cũ  Gửi ưu đãi đ ịnh kỳ, khảo sát hài lòng  \n \n4. Lịch triển khai (Timeline sơ b ộ) \nTháng  Hoạt động nổi bật \nTháng 1–3 Ra mắt sản phẩm mới, chạy quảng cáo Tết \nTháng 4–6 Chiến dịch giảm giá mùa hè + livestream  \nTháng 7–9 Khuyến mãi Back to School / Du l ịch \nTháng 10 –12 Sale cuối năm, quà t ặng khách hàng trung thành  \n \n5. Ngân sách d ự kiến \n• Tổng ngân sách marketing 2024:  500 triệu VNĐ (hoặc điều chỉnh tùy quy mô)  \n• Phân bổ: \no 40% cho qu ảng cáo số (Facebook, Google, TikTok Ads)  \no 20% sản xuất nội dung (ảnh, video, bài vi ết) \no 20% cho s ự kiện / offline marketing  \no 10% cho quà t ặng / chi phí CRM  \no 10% dự phòng  \n \n6. KPI – Đo lường hiệu quả Hạng mục KPI 2024  \nDoanh thu t ừ marketing  5 tỷ VNĐ  \nLượt truy cập website  200,000 lư ợt/năm  \nTỷ lệ chuyển đổi (CR)  ≥ 2.5%  \nTương tác m ạng xã hội 50,000 lư ợt tương tác/tháng  \nEmail/Zalo m ở đọc Tỷ lệ mở ≥ 25%, nhấp ≥ 5%  \n \n7. Đề xuất nổi bật \n• Tạo series video ng ắn "Một ngày tại..." (nếu là khách s ạn/thương hi ệu du lịch) \n• Hợp tác với KOLs địa phương thay vì ngư ời nổi tiếng toàn qu ốc \n• Áp dụng QR Code t ại điểm bán để kết nối online – offline'}
+2025-07-08 20:04:52 - INFO - Extracted content from response dict with key 'content': Dưới đây là nội dung mẫu cho file kế hoạch Marketing 2024  (Marketing Plan 2024), có th ể 
+dùng cho ...
+2025-07-08 20:04:52 - INFO - TextExtractionAgent response: 📝 Kết quả trích xuất từ file C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024....
+2025-07-08 20:04:52 - INFO - Assigned full content to file: marketing2024.pdf
+2025-07-08 20:04:52 - INFO - Created text_extraction_results for 1 files from general content
+2025-07-08 20:04:52 - INFO - Analyzing response to suggest next agent...
+2025-07-08 20:04:53 - INFO - No additional agent suggested or already in use
+2025-07-08 20:04:53 - INFO - Running agent: file_classification (Thứ tự thực thi: ['rag', 'text_extraction', 'file_classification'])
+2025-07-08 20:04:53 - INFO - Found content to classify from TextExtractionAgent: Dưới đây là nội dung mẫu cho file kế hoạch Marketing 2024  (Marketing Plan 2024), có th ể 
+dùng cho ...
+2025-07-08 20:04:53 - INFO - Found file path: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf
+2025-07-08 20:04:53 - INFO - Using extracted content for classification
+2025-07-08 20:04:53 - INFO - Running FileClassificationAgent with query: Phân loại tệp theo nội dung: 'Dưới đây là nội dung mẫu cho file kế hoạch Marketing 2024  (Marketing ...
+2025-07-08 20:04:58 - INFO - FileClassificationAgent completed
+2025-07-08 20:04:58 - INFO - Raw FileClassificationAgent response: {'response_type': 'data', 'is_task_complete': True, 'require_user_input': False, 'content': 'Marketing'}
+2025-07-08 20:04:58 - INFO - Extracted classification from response dict: Marketing
+2025-07-08 20:04:58 - INFO - FileClassificationAgent response: 🏷️ Kết quả phân loại file C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf: Marketing
+2025-07-08 20:04:58 - INFO - Stored classification labels in state: {'marketing2024.pdf': 'Marketing'}
+2025-07-08 20:04:58 - INFO - Analyzing response to suggest next agent...
+2025-07-08 20:04:58 - INFO - No additional agent suggested or already in use
+2025-07-08 20:04:58 - INFO - Running agent: metadata (Thứ tự thực thi: ['rag', 'text_extraction', 'file_classification', 'metadata'])
+2025-07-08 20:04:58 - INFO - Running MetadataAgent with query: Tìm file có nội dung liên quan đến kế hoạch sau đó lưu metadata lại
+2025-07-08 20:04:58 - INFO - Found 1 file paths from state: ['C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data\\marketing2024.pdf']
+2025-07-08 20:04:58 - INFO - Found text extraction agent message
+2025-07-08 20:04:58 - INFO - Extracted content length: 2339 characters
+2025-07-08 20:04:58 - INFO - Content preview: Dưới đây là nội dung mẫu cho file kế hoạch Marketing 2024  (Marketing Plan 2024), có th ể
+dùng cho doanh nghi ệp vừa và nhỏ (SME) ho ặc điều chỉnh theo ngành c ụ thể như khách
+sạn, bán lẻ, giáo dục......
+2025-07-08 20:04:58 - INFO - Found file classification agent message
+2025-07-08 20:04:58 - INFO - Analyzing classification content: 🏷️ Kết quả phân loại file C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf: Marketing
+2025-07-08 20:04:58 - INFO - Found classification label: \Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf: Marketing
+2025-07-08 20:04:58 - INFO - Passing classification_labels to metadata agent: {'marketing2024.pdf': 'Marketing'}
+2025-07-08 20:04:58 - INFO - Found individual text extraction results for 1 files
+2025-07-08 20:04:58 - INFO - Found content for marketing2024.pdf: 2435 characters
+2025-07-08 20:04:58 - INFO - Using individual content for marketing2024.pdf: 2435 characters
+2025-07-08 20:04:58 - INFO - Metadata parameters: {'file_name': 'marketing2024.pdf', 'file_path': 'C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data\\marketing2024.pdf', 'is_multi_file': False, 'classification_labels': {'marketing2024.pdf': 'Marketing'}, 'label': 'Marketing', 'content': 'Dưới đây là nội dung mẫu cho file kế hoạch Marketing 2024  (Marketing Plan 2024), có th ể \ndùng cho doanh nghi ệp vừa và nhỏ (SME) ho ặc điều chỉnh theo ngành c ụ thể như khách \nsạn, bán lẻ, giáo dục... \n \n     KẾ HOẠCH MARKETING 2024  \n1. Tổng quan chi ến lược \n• Mục tiêu tổng thể: \no Tăng trưởng doanh thu 20% so v ới 2023  \no Tăng 30% lư ợng khách hàng m ới \no Củng cố độ nhận diện thương hi ệu trên các n ền tảng số \n• Thông đi ệp chính (Key Message):  \no “Chất lượng – Uy tín – Giá trị bền vững”  \no (Điều chỉnh theo ngành, ví d ụ: “Trải nghiệm nghỉ dưỡng đẳng cấp giữa lòng \nthành ph ố”) \n \n2. Phân tích th ị trường \n• Khách hàng m ục tiêu:  \no Giới trẻ 18–30 tuổi, yêu thích tr ải nghiệm số \no Doanh nhân trung niên, ưu tiên ch ất lượng & dịch vụ \n• Xu hướng năm 2024:  \no Tăng sử dụng TikTok Shop & Influencer nano  \no Hành vi tìm ki ếm đa kênh: t ừ Google, YouTube đ ến Zalo  \no Ưu tiên s ản phẩm xanh, thân thi ện môi trư ờng \n \n3. Chiến lược kênh marketing  Kênh  Mục tiêu chính  Nội dung dự kiến \nFacebook  Tăng nhận diện thương hi ệu Bài viết cảm xúc, minigame, livestream bán \nhàng  \nTikTok  Tiếp cận giới trẻ, viral \ncontent  Video ngắn (10–30s), thử thách trend  \nWebsite/SEO  Tối ưu chuy ển đổi & tìm \nkiếm Blog hướng dẫn, landing page khuy ến mãi  \nEmail/Zalo  Chăm sóc khách hàng cũ  Gửi ưu đãi đ ịnh kỳ, khảo sát hài lòng  \n \n4. Lịch triển khai (Timeline sơ b ộ) \nTháng  Hoạt động nổi bật \nTháng 1–3 Ra mắt sản phẩm mới, chạy quảng cáo Tết \nTháng 4–6 Chiến dịch giảm giá mùa hè + livestream  \nTháng 7–9 Khuyến mãi Back to School / Du l ịch \nTháng 10 –12 Sale cuối năm, quà t ặng khách hàng trung thành  \n \n5. Ngân sách d ự kiến \n• Tổng ngân sách marketing 2024:  500 triệu VNĐ (hoặc điều chỉnh tùy quy mô)  \n• Phân bổ: \no 40% cho qu ảng cáo số (Facebook, Google, TikTok Ads)  \no 20% sản xuất nội dung (ảnh, video, bài vi ết) \no 20% cho s ự kiện / offline marketing  \no 10% cho quà t ặng / chi phí CRM  \no 10% dự phòng  \n \n6. KPI – Đo lường hiệu quả Hạng mục KPI 2024  \nDoanh thu t ừ marketing  5 tỷ VNĐ  \nLượt truy cập website  200,000 lư ợt/năm  \nTỷ lệ chuyển đổi (CR)  ≥ 2.5%  \nTương tác m ạng xã hội 50,000 lư ợt tương tác/tháng  \nEmail/Zalo m ở đọc Tỷ lệ mở ≥ 25%, nhấp ≥ 5%  \n \n7. Đề xuất nổi bật \n• Tạo series video ng ắn "Một ngày tại..." (nếu là khách s ạn/thương hi ệu du lịch) \n• Hợp tác với KOLs địa phương thay vì ngư ời nổi tiếng toàn qu ốc \n• Áp dụng QR Code t ại điểm bán để kết nối online – offline'}
+2025-07-08 20:04:58 - INFO - Enhanced metadata query: Tôi cần tạo và lưu metadata với các thông tin sau:
+
+- TÊN FILE: marketing2024.pdf
+- ĐƯỜNG DẪN: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf
+- PHÂN LOẠI: Marketing (tự động)
+
+NỘI DUNG (XEM TRƯỚC 200/2435 ký tự):
+
+==========================================================...
+2025-07-08 20:04:58 - INFO - Initializing MCP connection...
+2025-07-08 20:04:58 - INFO - Preparing to invoke MetadataAgent with the following parameters:
+2025-07-08 20:04:58 - INFO - - File: marketing2024.pdf
+2025-07-08 20:04:58 - INFO - - Path: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf
+2025-07-08 20:04:58 - INFO - - Label: Marketing
+2025-07-08 20:04:58 - INFO - - Content length: 2435 characters
+2025-07-08 20:04:58 - INFO - Invoking MetadataAgent...
+2025-07-08 20:04:59 - INFO - MetadataAgent completed successfully
+2025-07-08 20:04:59 - INFO - Raw metadata agent response: ✅ Đã tạo và lưu metadata thành công cho file marketing2024.pdf. Metadata ID: 659b8e2c-3e6b-4e43-bbd6-3c25194878b9
+2025-07-08 20:04:59 - INFO - Found metadata ID using pattern id[\s:]*([a-f0-9-]{8,}): 659b8e2c-3e6b-4e43-bbd6-3c25194878b9
+2025-07-08 20:04:59 - INFO - Metadata saved with ID: 659b8e2c-3e6b-4e43-bbd6-3c25194878b9
+2025-07-08 20:04:59 - INFO - MetadataAgent response: 📋 ✅ Đã lưu metadata cho file marketing2024.pdf thành công. ID: 659b8e2c-3e6b-4e43-bbd6-3c25194878b9...
+2025-07-08 20:04:59 - INFO - Added metadata ID to state: 659b8e2c-3e6b-4e43-bbd6-3c25194878b9
+2025-07-08 20:04:59 - INFO - Added file C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf to processed_files in state
+2025-07-08 20:04:59 - INFO - Running reflection agent for final response...
+2025-07-08 20:04:59 - INFO - Running ReflectionAgent...
+2025-07-08 20:04:59 - INFO - ReflectionAgent debug - Using accessible_files: 1 files
+2025-07-08 20:04:59 - INFO - ReflectionAgent debug - Created detailed_files for 1 files
+2025-07-08 20:05:00 - INFO - ReflectionAgent debug - Final file count for response: 1, detailed_files: 1
+2025-07-08 20:05:00 - INFO - Reflection response generated: Chào bạn, mình đã tìm thấy 1 file liên quan đến kế hoạch của bạn rồi nhé. Đó là file marketing2024.pdf, thuộc phân loại Marketing đó ạ.
+2025-07-08 20:05:00 - INFO - ReflectionAgent completed: Chào bạn, mình đã tìm thấy 1 file liên quan đến kế hoạch của bạn rồi nhé. Đó là file marketing2024.pdf, thuộc phân loại Marketing đó ạ.
+2025-07-08 20:05:00 - INFO - Used tools: ['rag', 'text_extraction', 'file_classification', 'metadata', 'reflection']
+2025-07-08 20:05:16 - INFO - Phát hiện tìm kiếm theo nội dung: tìm file có nội dung liên quan đến kế hoạch sau đó lưu metadata lại
+2025-07-08 20:05:17 - INFO - Kế hoạch agent dựa trên LLM: ['rag', 'metadata', 'text_extraction', 'file_classification']
+2025-07-08 20:05:17 - INFO - Kế hoạch agent ban đầu: ['rag', 'metadata', 'text_extraction', 'file_classification']
+2025-07-08 20:05:17 - INFO - Validating agent sequence: ['rag', 'metadata', 'text_extraction', 'file_classification']
+2025-07-08 20:05:17 - INFO - Phát hiện metadata agent trong kế hoạch, kiểm tra thứ tự
+2025-07-08 20:05:17 - INFO - Sử dụng rag làm agent tìm kiếm trong workflow metadata
+2025-07-08 20:05:17 - INFO - Đã điều chỉnh thứ tự agent: ['rag', 'metadata', 'text_extraction', 'file_classification'] -> ['rag', 'text_extraction', 'file_classification', 'metadata']
+2025-07-08 20:05:17 - INFO - Kế hoạch agent sau khi kiểm tra: ['rag', 'text_extraction', 'file_classification', 'metadata']
+2025-07-08 20:05:17 - INFO - Running agent: rag (Thứ tự thực thi: ['rag'])
+2025-07-08 20:05:17 - INFO - Running RAGAgent with query: Tìm file có nội dung liên quan đến kế hoạch sau đó lưu metadata lại
+2025-07-08 20:05:17 - INFO - Searching with RAGAgent...
+2025-07-08 20:05:17 - INFO - RAGAgent processing query: 'Tìm file có nội dung liên quan đến kế hoạch sau đó lưu metadata lại'
+2025-07-08 20:05:17 - INFO - Search query words: ['kế', 'hoạch', 'lưu', 'metadata', 'lại'], exact phrases: ['kế hoạch lưu metadata lại', 'kế hoạch lưu metadata lại', 'kế hoạch', 'hoạch lưu', 'lưu metadata', 'metadata lại']
+2025-07-08 20:05:17 - INFO - Found 1 relevant documents across multiple files
+2025-07-08 20:05:17 - INFO - RAGAgent found 1 results for query: 'Tìm file có nội dung liên quan đến kế hoạch sau đó lưu metadata lại'
+2025-07-08 20:05:17 - INFO - Top result: marketing2024.pdf, score: 3
+2025-07-08 20:05:17 - INFO - RAGAgent search completed
+2025-07-08 20:05:17 - INFO - RAG agent found 1 file paths: ['C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data\\marketing2024.pdf']
+2025-07-08 20:05:17 - INFO - Running agent: text_extraction (Thứ tự thực thi: ['rag', 'text_extraction'])
+2025-07-08 20:05:17 - INFO - Checking message for file paths: Tôi đã tìm thấy file: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf...
+2025-07-08 20:05:17 - INFO - Found agent message with standard format for single file
+2025-07-08 20:05:17 - INFO - Extracted full file path: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf
+2025-07-08 20:05:17 - INFO - Access granted for user role 'hr' to file 'C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf'
+2025-07-08 20:05:17 - INFO - Enhanced query with file paths: Extract text from the file at path C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketin...
+2025-07-08 20:05:17 - INFO - Waiting for TextExtractionAgent to complete...
+2025-07-08 20:05:30 - INFO - TextExtractionAgent completed
+2025-07-08 20:05:30 - INFO - Raw TextExtractionAgent response: {'response_type': 'data', 'is_task_complete': True, 'require_user_input': False, 'content': 'Dưới đây là nội dung mẫu cho file kế hoạch Marketing 2024  (Marketing Plan 2024), có th ể \ndùng cho doanh nghi ệp vừa và nhỏ (SME) ho ặc điều chỉnh theo ngành c ụ thể như khách \nsạn, bán lẻ, giáo dục... \n \n     KẾ HOẠCH MARKETING 2024  \n1. Tổng quan chi ến lược \n• Mục tiêu tổng thể: \no Tăng trưởng doanh thu 20% so v ới 2023  \no Tăng 30% lư ợng khách hàng m ới \no Củng cố độ nhận diện thương hi ệu trên các n ền tảng số \n• Thông đi ệp chính (Key Message):  \no “Chất lượng – Uy tín – Giá trị bền vững”  \no (Điều chỉnh theo ngành, ví d ụ: “Trải nghiệm nghỉ dưỡng đẳng cấp giữa lòng \nthành ph ố”) \n \n2. Phân tích th ị trường \n• Khách hàng m ục tiêu:  \no Giới trẻ 18–30 tuổi, yêu thích tr ải nghiệm số \no Doanh nhân trung niên, ưu tiên ch ất lượng & dịch vụ \n• Xu hướng năm 2024:  \no Tăng sử dụng TikTok Shop & Influencer nano  \no Hành vi tìm ki ếm đa kênh: t ừ Google, YouTube đ ến Zalo  \no Ưu tiên s ản phẩm xanh, thân thi ện môi trư ờng \n \n3. Chiến lược kênh marketing  Kênh  Mục tiêu chính  Nội dung dự kiến \nFacebook  Tăng nhận diện thương hi ệu Bài viết cảm xúc, minigame, livestream bán \nhàng  \nTikTok  Tiếp cận giới trẻ, viral \ncontent  Video ngắn (10–30s), thử thách trend  \nWebsite/SEO  Tối ưu chuy ển đổi & tìm \nkiếm Blog hướng dẫn, landing page khuy ến mãi  \nEmail/Zalo  Chăm sóc khách hàng cũ  Gửi ưu đãi đ ịnh kỳ, khảo sát hài lòng  \n \n4. Lịch triển khai (Timeline sơ b ộ) \nTháng  Hoạt động nổi bật \nTháng 1–3 Ra mắt sản phẩm mới, chạy quảng cáo Tết \nTháng 4–6 Chiến dịch giảm giá mùa hè + livestream  \nTháng 7–9 Khuyến mãi Back to School / Du l ịch \nTháng 10 –12 Sale cuối năm, quà t ặng khách hàng trung thành  \n \n5. Ngân sách d ự kiến \n• Tổng ngân sách marketing 2024:  500 triệu VNĐ (hoặc điều chỉnh tùy quy mô)  \n• Phân bổ: \no 40% cho qu ảng cáo số (Facebook, Google, TikTok Ads)  \no 20% sản xuất nội dung (ảnh, video, bài vi ết) \no 20% cho s ự kiện / offline marketing  \no 10% cho quà t ặng / chi phí CRM  \no 10% dự phòng  \n \n6. KPI – Đo lường hiệu quả Hạng mục KPI 2024  \nDoanh thu t ừ marketing  5 tỷ VNĐ  \nLượt truy cập website  200,000 lư ợt/năm  \nTỷ lệ chuyển đổi (CR)  ≥ 2.5%  \nTương tác m ạng xã hội 50,000 lư ợt tương tác/tháng  \nEmail/Zalo m ở đọc Tỷ lệ mở ≥ 25%, nhấp ≥ 5%  \n \n7. Đề xuất nổi bật \n• Tạo series video ng ắn "Một ngày tại..." (nếu là khách s ạn/thương hi ệu du lịch) \n• Hợp tác với KOLs địa phương thay vì ngư ời nổi tiếng toàn qu ốc \n• Áp dụng QR Code t ại điểm bán để kết nối online – offline'}
+2025-07-08 20:05:30 - INFO - Extracted content from response dict with key 'content': Dưới đây là nội dung mẫu cho file kế hoạch Marketing 2024  (Marketing Plan 2024), có th ể 
+dùng cho ...
+2025-07-08 20:05:30 - INFO - TextExtractionAgent response: 📝 Kết quả trích xuất từ file C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024....
+2025-07-08 20:05:30 - INFO - Assigned full content to file: marketing2024.pdf
+2025-07-08 20:05:30 - INFO - Created text_extraction_results for 1 files from general content
+2025-07-08 20:05:30 - INFO - Analyzing response to suggest next agent...
+2025-07-08 20:05:30 - INFO - No additional agent suggested or already in use
+2025-07-08 20:05:30 - INFO - Running agent: file_classification (Thứ tự thực thi: ['rag', 'text_extraction', 'file_classification'])
+2025-07-08 20:05:30 - INFO - Found content to classify from TextExtractionAgent: Dưới đây là nội dung mẫu cho file kế hoạch Marketing 2024  (Marketing Plan 2024), có th ể 
+dùng cho ...
+2025-07-08 20:05:30 - INFO - Found file path: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf
+2025-07-08 20:05:30 - INFO - Using extracted content for classification
+2025-07-08 20:05:30 - INFO - Running FileClassificationAgent with query: Phân loại tệp theo nội dung: 'Dưới đây là nội dung mẫu cho file kế hoạch Marketing 2024  (Marketing ...
+2025-07-08 20:05:34 - INFO - FileClassificationAgent completed
+2025-07-08 20:05:34 - INFO - Raw FileClassificationAgent response: {'response_type': 'data', 'is_task_complete': True, 'require_user_input': False, 'content': 'Marketing'}
+2025-07-08 20:05:34 - INFO - Extracted classification from response dict: Marketing
+2025-07-08 20:05:34 - INFO - FileClassificationAgent response: 🏷️ Kết quả phân loại file C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf: Marketing
+2025-07-08 20:05:34 - INFO - Stored classification labels in state: {'marketing2024.pdf': 'Marketing'}
+2025-07-08 20:05:34 - INFO - Analyzing response to suggest next agent...
+2025-07-08 20:05:34 - INFO - No additional agent suggested or already in use
+2025-07-08 20:05:34 - INFO - Running agent: metadata (Thứ tự thực thi: ['rag', 'text_extraction', 'file_classification', 'metadata'])
+2025-07-08 20:05:34 - INFO - Running MetadataAgent with query: Tìm file có nội dung liên quan đến kế hoạch sau đó lưu metadata lại
+2025-07-08 20:05:34 - INFO - Found 1 file paths from state: ['C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data\\marketing2024.pdf']
+2025-07-08 20:05:34 - INFO - Found text extraction agent message
+2025-07-08 20:05:34 - INFO - Extracted content length: 2339 characters
+2025-07-08 20:05:34 - INFO - Content preview: Dưới đây là nội dung mẫu cho file kế hoạch Marketing 2024  (Marketing Plan 2024), có th ể
+dùng cho doanh nghi ệp vừa và nhỏ (SME) ho ặc điều chỉnh theo ngành c ụ thể như khách
+sạn, bán lẻ, giáo dục......
+2025-07-08 20:05:34 - INFO - Found file classification agent message
+2025-07-08 20:05:34 - INFO - Analyzing classification content: 🏷️ Kết quả phân loại file C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf: Marketing
+2025-07-08 20:05:34 - INFO - Found classification label: \Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf: Marketing
+2025-07-08 20:05:34 - INFO - Passing classification_labels to metadata agent: {'marketing2024.pdf': 'Marketing'}
+2025-07-08 20:05:34 - INFO - Found individual text extraction results for 1 files
+2025-07-08 20:05:34 - INFO - Found content for marketing2024.pdf: 2435 characters
+2025-07-08 20:05:34 - INFO - Using individual content for marketing2024.pdf: 2435 characters
+2025-07-08 20:05:34 - INFO - Metadata parameters: {'file_name': 'marketing2024.pdf', 'file_path': 'C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data\\marketing2024.pdf', 'is_multi_file': False, 'classification_labels': {'marketing2024.pdf': 'Marketing'}, 'label': 'Marketing', 'content': 'Dưới đây là nội dung mẫu cho file kế hoạch Marketing 2024  (Marketing Plan 2024), có th ể \ndùng cho doanh nghi ệp vừa và nhỏ (SME) ho ặc điều chỉnh theo ngành c ụ thể như khách \nsạn, bán lẻ, giáo dục... \n \n     KẾ HOẠCH MARKETING 2024  \n1. Tổng quan chi ến lược \n• Mục tiêu tổng thể: \no Tăng trưởng doanh thu 20% so v ới 2023  \no Tăng 30% lư ợng khách hàng m ới \no Củng cố độ nhận diện thương hi ệu trên các n ền tảng số \n• Thông đi ệp chính (Key Message):  \no “Chất lượng – Uy tín – Giá trị bền vững”  \no (Điều chỉnh theo ngành, ví d ụ: “Trải nghiệm nghỉ dưỡng đẳng cấp giữa lòng \nthành ph ố”) \n \n2. Phân tích th ị trường \n• Khách hàng m ục tiêu:  \no Giới trẻ 18–30 tuổi, yêu thích tr ải nghiệm số \no Doanh nhân trung niên, ưu tiên ch ất lượng & dịch vụ \n• Xu hướng năm 2024:  \no Tăng sử dụng TikTok Shop & Influencer nano  \no Hành vi tìm ki ếm đa kênh: t ừ Google, YouTube đ ến Zalo  \no Ưu tiên s ản phẩm xanh, thân thi ện môi trư ờng \n \n3. Chiến lược kênh marketing  Kênh  Mục tiêu chính  Nội dung dự kiến \nFacebook  Tăng nhận diện thương hi ệu Bài viết cảm xúc, minigame, livestream bán \nhàng  \nTikTok  Tiếp cận giới trẻ, viral \ncontent  Video ngắn (10–30s), thử thách trend  \nWebsite/SEO  Tối ưu chuy ển đổi & tìm \nkiếm Blog hướng dẫn, landing page khuy ến mãi  \nEmail/Zalo  Chăm sóc khách hàng cũ  Gửi ưu đãi đ ịnh kỳ, khảo sát hài lòng  \n \n4. Lịch triển khai (Timeline sơ b ộ) \nTháng  Hoạt động nổi bật \nTháng 1–3 Ra mắt sản phẩm mới, chạy quảng cáo Tết \nTháng 4–6 Chiến dịch giảm giá mùa hè + livestream  \nTháng 7–9 Khuyến mãi Back to School / Du l ịch \nTháng 10 –12 Sale cuối năm, quà t ặng khách hàng trung thành  \n \n5. Ngân sách d ự kiến \n• Tổng ngân sách marketing 2024:  500 triệu VNĐ (hoặc điều chỉnh tùy quy mô)  \n• Phân bổ: \no 40% cho qu ảng cáo số (Facebook, Google, TikTok Ads)  \no 20% sản xuất nội dung (ảnh, video, bài vi ết) \no 20% cho s ự kiện / offline marketing  \no 10% cho quà t ặng / chi phí CRM  \no 10% dự phòng  \n \n6. KPI – Đo lường hiệu quả Hạng mục KPI 2024  \nDoanh thu t ừ marketing  5 tỷ VNĐ  \nLượt truy cập website  200,000 lư ợt/năm  \nTỷ lệ chuyển đổi (CR)  ≥ 2.5%  \nTương tác m ạng xã hội 50,000 lư ợt tương tác/tháng  \nEmail/Zalo m ở đọc Tỷ lệ mở ≥ 25%, nhấp ≥ 5%  \n \n7. Đề xuất nổi bật \n• Tạo series video ng ắn "Một ngày tại..." (nếu là khách s ạn/thương hi ệu du lịch) \n• Hợp tác với KOLs địa phương thay vì ngư ời nổi tiếng toàn qu ốc \n• Áp dụng QR Code t ại điểm bán để kết nối online – offline'}
+2025-07-08 20:05:34 - INFO - Enhanced metadata query: Tôi cần tạo và lưu metadata với các thông tin sau:
+
+- TÊN FILE: marketing2024.pdf
+- ĐƯỜNG DẪN: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf
+- PHÂN LOẠI: Marketing (tự động)
+
+NỘI DUNG (XEM TRƯỚC 200/2435 ký tự):
+
+==========================================================...
+2025-07-08 20:05:34 - INFO - Preparing to invoke MetadataAgent with the following parameters:
+2025-07-08 20:05:34 - INFO - - File: marketing2024.pdf
+2025-07-08 20:05:34 - INFO - - Path: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf
+2025-07-08 20:05:34 - INFO - - Label: Marketing
+2025-07-08 20:05:34 - INFO - - Content length: 2435 characters
+2025-07-08 20:05:34 - INFO - Invoking MetadataAgent...
+2025-07-08 20:05:35 - INFO - MetadataAgent completed successfully
+2025-07-08 20:05:35 - INFO - Raw metadata agent response: ✅ Đã tạo và lưu metadata thành công cho file marketing2024.pdf. Metadata ID: c7f46dbe-9efa-4a35-bac6-bbaffd92dff9
+2025-07-08 20:05:35 - INFO - Found metadata ID using pattern id[\s:]*([a-f0-9-]{8,}): c7f46dbe-9efa-4a35-bac6-bbaffd92dff9
+2025-07-08 20:05:35 - INFO - Metadata saved with ID: c7f46dbe-9efa-4a35-bac6-bbaffd92dff9
+2025-07-08 20:05:35 - INFO - MetadataAgent response: 📋 ✅ Đã lưu metadata cho file marketing2024.pdf thành công. ID: c7f46dbe-9efa-4a35-bac6-bbaffd92dff9...
+2025-07-08 20:05:35 - INFO - Added metadata ID to state: c7f46dbe-9efa-4a35-bac6-bbaffd92dff9
+2025-07-08 20:05:35 - INFO - Added file C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\marketing2024.pdf to processed_files in state
+2025-07-08 20:05:35 - INFO - Running reflection agent for final response...
+2025-07-08 20:05:35 - INFO - Running ReflectionAgent...
+2025-07-08 20:05:35 - INFO - ReflectionAgent debug - Using accessible_files: 1 files
+2025-07-08 20:05:35 - INFO - ReflectionAgent debug - Created detailed_files for 1 files
+2025-07-08 20:05:36 - INFO - ReflectionAgent debug - Final file count for response: 1, detailed_files: 1
+2025-07-08 20:05:36 - INFO - Reflection response generated: Chào bạn, mình đã tìm thấy 1 file liên quan đến kế hoạch của bạn rồi nhé. Đó là file marketing2024.pdf, thuộc phân loại Marketing đó ạ.
+2025-07-08 20:05:36 - INFO - ReflectionAgent completed: Chào bạn, mình đã tìm thấy 1 file liên quan đến kế hoạch của bạn rồi nhé. Đó là file marketing2024.pdf, thuộc phân loại Marketing đó ạ.
+2025-07-08 20:05:36 - INFO - Used tools: ['rag', 'text_extraction', 'file_classification', 'metadata', 'reflection']

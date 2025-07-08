@@ -22,7 +22,7 @@ memory = MemorySaver()
 def classify_file_tool(file_content: str) -> str:
     """Classify the type or category of a file based on its name and content."""
     prompt = PromptTemplate(
-        template=file_classification_template,
+        template=file_classification_prompt,
         input_variables=["file_content"]
     )
     chain = prompt | gemini | StrOutputParser()

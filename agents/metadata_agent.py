@@ -4,13 +4,19 @@ import json
 import asyncio
 import mcp
 import pandas as pd
-from datetime import datetime
+from datetime import datetime  # Sửa lại import datetime
 import subprocess
 import time
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import queue
+import requests
+import re
+from typing import Any, AsyncIterable, Dict, Optional, List, Union
+import uuid
+
+
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -570,18 +576,19 @@ class MetadataAgent(BaseAgent):
     
     @property
     def name(self):
-        return self.agent_name
-
+        return "MetadataAgent"
+    
     def __init__(self):
         super().__init__(
             agent_name='MetadataAgent',
-            description='Create metadata for documents and save to MCP server JSON file',
-            content_types=['text', 'text/plain']
+            description='Tạo và quản lý metadata cho tài liệu',
+            system_message=metadata_prompt,
+            model=gemini,
+            content_types=['text/plain', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', '*/*']
         )
-
-        self.model = gemini
         self.mcp_initialized = False
-
+        
+        # Initialize graph for LangGraph integration
         self.graph = create_react_agent(
             self.model,
             checkpointer=memory,
@@ -596,7 +603,8 @@ class MetadataAgent(BaseAgent):
             ],
             name="Metadata Agent",
         )
-
+        
+    # Synchronous MCP initialization
     def initialize_mcp_sync(self):
         """Synchronous MCP initialization"""
         if not self.mcp_initialized and MCP_AVAILABLE:
@@ -618,6 +626,72 @@ class MetadataAgent(BaseAgent):
                 print(f"❌ Error initializing MCP: {e}")
                 return False
         return self.mcp_initialized
+        
+    def extract_content_from_file(self, file_path):
+        """Extract content directly from a file based on its extension"""
+        try:
+            if not os.path.exists(file_path):
+                print(f"❌ File not found: {file_path}")
+                return f"File not found: {file_path}"
+                
+            file_ext = os.path.splitext(file_path)[1].lower()
+            print(f"📄 Extracting content from {file_path} (type: {file_ext})")
+            
+            # Extract based on file type
+            if file_ext == '.pdf':
+                try:
+                    from agents.text_extraction_agent import extract_text_from_pdf
+                    content = extract_text_from_pdf(file_path)
+                except ImportError:
+                    # Fallback implementation
+                    import PyPDF2
+                    with open(file_path, 'rb') as file:
+                        reader = PyPDF2.PdfReader(file)
+                        content = ""
+                        for page in reader.pages:
+                            content += page.extract_text() + "\n"
+                print(f"✅ Extracted {len(content)} characters from PDF")
+                
+            elif file_ext in ['.docx', '.doc']:
+                try:
+                    from agents.text_extraction_agent import extract_text_from_word
+                    content = extract_text_from_word(file_path)
+                except ImportError:
+                    # Fallback implementation
+                    import docx
+                    doc = docx.Document(file_path)
+                    content = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+                print(f"✅ Extracted {len(content)} characters from Word document")
+                
+            elif file_ext in ['.pptx', '.ppt']:
+                try:
+                    from agents.text_extraction_agent import extract_text_from_powerpoint
+                    content = extract_text_from_powerpoint(file_path)
+                except ImportError:
+                    # Fallback implementation
+                    import pptx
+                    presentation = pptx.Presentation(file_path)
+                    content = ""
+                    for slide in presentation.slides:
+                        for shape in slide.shapes:
+                            if hasattr(shape, "text"):
+                                content += shape.text + "\n"
+                print(f"✅ Extracted {len(content)} characters from PowerPoint")
+                
+            else:
+                # For other file types, try to read as text
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as file:
+                        content = file.read()
+                    print(f"✅ Extracted {len(content)} characters from text file")
+                except Exception as e:
+                    print(f"❌ Cannot extract text from {file_path}: {e}")
+                    content = f"Cannot extract text from this file type: {file_ext}"
+            
+            return content
+        except Exception as e:
+            print(f"❌ Error extracting content from {file_path}: {e}")
+            return f"Error extracting content: {str(e)}"
 
     def invoke(self, query, sessionId, metadata=None) -> str:
         """Invoke the agent synchronously with better error handling.
@@ -652,55 +726,241 @@ class MetadataAgent(BaseAgent):
         }
     
         # Add metadata to the query if available
-        if metadata and metadata.get('content'):
-            # Create metadata directly in the invoke method
-            try:
-                # Call create_metadata directly
-                file_name = metadata.get('file_name', 'unknown_file')
-                label = metadata.get('label', 'Chưa phân loại')
-                content = metadata.get('content', '')
-                
-                print(f"✅ Directly creating metadata for {file_name} with label: {label}")
-                print(f"Content length: {len(content)} characters")
-                
-                # Create metadata dictionary
-                from datetime import datetime
-                metadata_dict = {
-                    "file_name": file_name,
-                    "label": label,
-                    "content": content[:500] if content and len(content) > 500 else (content or ""),
-                    "total_characters": float(len(content)) if content else 0.0,
-                    "creation_date": _format_file_timestamp(
-                        timestamp=datetime.now().timestamp(), 
-                        include_time=True
-                    )
-                }
-                
-                # Save metadata to MCP
-                if mcp_connection:
-                    result = mcp_connection.call_tool_sync("save_metadata_to_json", {
-                        "filename": file_name,
+        if metadata:
+            # Check if this is a multi-file metadata request
+            is_multi_file = metadata.get('is_multi_file', False)
+            file_paths = metadata.get('file_paths', [])
+            
+            if is_multi_file and file_paths and len(file_paths) > 1:
+                # Handle multiple files
+                try:
+                    import os
+                    file_names = metadata.get('file_names', [])
+                    if not file_names and file_paths:
+                        file_names = [os.path.basename(path) for path in file_paths]
+                        
+                    label = metadata.get('label')
+                    if label is None or label == 'None':
+                        # Try to get classification labels from metadata dictionary
+                        classification_labels = metadata.get('classification_labels', {})
+                        if classification_labels and len(file_names) > 0 and file_names[0] in classification_labels:
+                            label = classification_labels[file_names[0]]
+                            print(f"✅ Using classification label from metadata dictionary: '{label}'")
+                        else:
+                            label = "Giáo dục"  # Default label based on common classifications
+                            print(f"⚠️ No label provided for multi-file case, using default: '{label}'")
+                    content = metadata.get('content', '')
+                        
+                    print(f"✅ Creating metadata for {len(file_paths)} files with label: {label}")
+                    print(f"Content length: {len(content)} characters")
+                        
+                    # Create metadata dictionary for the group
+                    # Ensure we have at least some content
+                    safe_content = content if content else f"Multiple files: {', '.join(file_names[:3])}{'...' if len(file_names) > 3 else ''} (no content extracted)"
+                    metadata_dict = {
+                        "file_name": metadata.get('file_name', 'multiple_files'),
                         "label": label,
-                        "content": content,
-                        "additional_metadata": {k: v for k, v in metadata_dict.items() 
-                                            if k not in ['file_name', 'label', 'content']}
-                    })
+                        "content": safe_content[:500] if len(safe_content) > 500 else safe_content,
+                        "total_characters": float(len(safe_content)),
+                        "creation_date": _format_file_timestamp(
+                            timestamp=datetime.now().timestamp(), 
+                            include_time=True
+                        ),
+                        "file_count": len(file_paths),
+                        "file_names": file_names
+                    }
                     
-                    # Extract metadata ID
-                    metadata_id = None
-                    if isinstance(result, dict):
-                        if 'metadata' in result and 'id' in result['metadata']:
-                            metadata_id = result['metadata']['id']
-                        elif 'id' in result:
-                            metadata_id = result['id']
+                    # Save metadata for each file
+                    metadata_ids = []
+                    for i, file_path in enumerate(file_paths):
+                        file_name = file_names[i] if i < len(file_names) else os.path.basename(file_path)
+                        
+                        # Save metadata to MCP
+                        if mcp_connection:
+                            # First try to extract content directly from the file
+                            try:
+                                print(f"🔍 Attempting direct content extraction for {file_name}")
+                                direct_content = self.extract_content_from_file(file_path)
+                                if direct_content and len(direct_content) > 50:  # Ensure we got meaningful content
+                                    file_content = direct_content
+                                    print(f"📄 Successfully extracted content directly: {len(file_content)} characters")
+                                else:
+                                    # Fall back to passed content if direct extraction failed or returned minimal content
+                                    print(f"⚠️ Direct extraction returned minimal content, checking alternatives")
+                                    # Check if we have individual content for this file
+                                    individual_contents = metadata.get('individual_contents', {})
+                                    if file_name in individual_contents:
+                                        file_content = individual_contents[file_name]
+                                        print(f"📋 Using individual content from metadata: {len(file_content)} characters")
+                                    else:
+                                        file_content = content
+                                        print(f"📋 Using shared content for file {file_name}")
+                            except Exception as e:
+                                print(f"❌ Error in direct extraction, falling back: {e}")
+                                # Check if we have individual content for this file
+                                individual_contents = metadata.get('individual_contents', {})
+                                if file_name in individual_contents:
+                                    file_content = individual_contents[file_name]
+                                    print(f"📋 Using individual content from metadata: {len(file_content)} characters")
+                                else:
+                                    file_content = content
+                                    print(f"📋 Using shared content for file {file_name}")
+                                
+                            # Ensure we have at least some content
+                            safe_content = file_content if file_content else f"File: {file_name} (no content extracted)"
+                            print(f"📋 Saving metadata for file {i+1}/{len(file_paths)}: {file_name}")
+                            print(f"   - Label: {label}")
+                            print(f"   - Content length: {len(safe_content)} characters")
+                            
+                            # Check if we have a specific label for this file in classification_labels
+                            file_label = label
+                            classification_labels = metadata.get('classification_labels', {})
+                            metadata_id = str(uuid.uuid4())
+                            # Calculate actual content length
+                            actual_content_length = len(safe_content)
+                            print(f"   - Actual content length: {actual_content_length} characters")
+                            
+                            # Prepare additional metadata specific to this file
+                            additional_meta = {
+                                "total_characters": actual_content_length,  # Use actual integer value, not float
+                                "creation_date": _format_file_timestamp(
+                                    timestamp=datetime.now().timestamp(), 
+                                    include_time=True
+                                ),
+                                "file_path": file_path,
+                            }
+                            
+                            # Only add group information if this is part of a multi-file group
+                            if len(file_paths) > 1:
+                                additional_meta["is_part_of_group"] = True
+                                additional_meta["group_size"] = len(file_paths)
+                                # Only include file_names of other files in the group, not this file
+                                other_files = [f for f in file_names if f != file_name]
+                                if other_files:
+                                    additional_meta["related_files"] = other_files
+                            
+                            metadata_obj = {
+                                "id": str(uuid.uuid4()),
+                                "filename": file_name,
+                                "label": label,
+                                "content": safe_content,
+                                "created_at": datetime.now().isoformat(),
+                                "updated_at": datetime.now().isoformat(),
+                                "additional_metadata": additional_meta
+                            }
+                            
+                            # Save metadata to MCP
+                            result = mcp_connection.call_tool_sync("save_metadata_to_json", metadata_obj)
+                            
+                            # Extract metadata ID and handle errors
+                            metadata_id = None
+                            if isinstance(result, dict):
+                                # Check for explicit error
+                                if 'error' in result:
+                                    print(f"❌ MCP error for file {file_name}: {result['error']}")
+                                # Try to extract ID from different possible structures
+                                elif 'metadata' in result and 'id' in result['metadata']:
+                                    metadata_id = result['metadata']['id']
+                                elif 'id' in result:
+                                    metadata_id = result['id']
+                                
+                                # Debug print the result structure
+                                print(f"📊 MCP result keys: {list(result.keys())}")
+                            
+                            if metadata_id:
+                                metadata_ids.append(metadata_id)
+                                print(f"✅ Metadata saved for file {file_name} with ID: {metadata_id}")
                     
-                    if metadata_id:
-                        print(f"✅ Metadata saved with ID: {metadata_id}")
-                        return f"✅ Đã tạo và lưu metadata thành công cho file {file_name}. Metadata ID: {metadata_id}"
-            except Exception as e:
-                import traceback
-                print(f"❌ Error creating metadata directly: {e}")
-                print(traceback.format_exc())
+                    if metadata_ids:
+                        # Return the first ID as the primary ID
+                        primary_id = metadata_ids[0]
+                        return f"✅ Đã tạo và lưu metadata thành công cho {len(metadata_ids)} files. Metadata ID chính: {primary_id}"
+                    else:
+                        print("❌ No metadata IDs were returned from MCP. This might indicate a server issue.")
+                        return f"❌ Không thể lưu metadata cho các files. Đã thử lưu {len(file_paths)} files với nhãn '{label}'."
+                except Exception as e:
+                    import traceback
+                    print(f"❌ Error creating metadata for multiple files: {e}")
+                    print(traceback.format_exc())
+                    return f"❌ Lỗi khi tạo metadata cho nhiều files: {str(e)}"
+            
+            # Handle single file
+            elif metadata.get('content'):
+                try:
+                    # Get metadata parameters from the metadata dict
+                    file_paths = metadata.get('file_paths', [])
+                    file_names = metadata.get('file_names', [])
+                    label = metadata.get('label')
+                    if label is None or label == 'None':
+                        # Try to get classification labels from metadata dictionary
+                        classification_labels = metadata.get('classification_labels', {})
+                        file_name = metadata.get('file_name', 'unknown_file')
+                        if classification_labels and file_name in classification_labels:
+                            label = classification_labels[file_name]
+                            print(f"✅ Using classification label from metadata dictionary: '{label}'")
+                        else:
+                            label = "Giáo dục"  # Default label based on common classifications
+                            print(f"⚠️ No label provided for single file, using default: '{label}'")
+                    content = metadata.get('content', '')
+                    
+                    file_name = metadata.get('file_name', 'unknown_file')
+                    print(f"✅ Directly creating metadata for {file_name} with label: {label}")
+                    print(f"Content length: {len(content)} characters")
+                    
+                 
+                    # Ensure we have at least some content
+                    safe_content = content if content else f"File: {file_name} (no content extracted)"
+                    metadata_dict = {
+                        "file_name": file_name,
+                        "label": label,
+                        "content": safe_content[:500] if len(safe_content) > 500 else safe_content,
+                        "total_characters": float(len(safe_content)),
+                        "creation_date": _format_file_timestamp(
+                            timestamp=datetime.now().timestamp(), 
+                            include_time=True
+                        )
+                    }
+                    
+                    # Save metadata to MCP
+                    if mcp_connection:
+                        # Ensure we have at least some content
+                        safe_content = content if content else f"File: {file_name} (no content extracted)"
+                        print(f"📋 Saving metadata for single file: {file_name}")
+                        print(f"   - Label: {label}")
+                        print(f"   - Content length: {len(safe_content)} characters")
+                        result = mcp_connection.call_tool_sync("save_metadata_to_json", {
+                            "filename": file_name,
+                            "label": label,
+                            "content": safe_content,
+                            "additional_metadata": {k: v for k, v in metadata_dict.items() 
+                                                if k not in ['file_name', 'label', 'content']}
+                        })
+                        
+                        # Extract metadata ID and handle errors
+                        metadata_id = None
+                        if isinstance(result, dict):
+                            # Check for explicit error
+                            if 'error' in result:
+                                print(f"❌ MCP error for file {file_name}: {result['error']}")
+                            # Try to extract ID from different possible structures
+                            elif 'metadata' in result and 'id' in result['metadata']:
+                                metadata_id = result['metadata']['id']
+                            elif 'id' in result:
+                                metadata_id = result['id']
+                            
+                            # Debug print the result structure
+                            print(f"📊 MCP result keys: {list(result.keys())}")
+                        
+                        if metadata_id:
+                            print(f"✅ Metadata saved with ID: {metadata_id}")
+                            return f"✅ Đã tạo và lưu metadata thành công cho file {file_name}. Metadata ID: {metadata_id}"
+                        else:
+                            print(f"⚠️ Failed to save metadata for file {file_name}, no ID returned")
+                            return f"❌ Không thể lưu metadata cho file {file_name}. Vui lòng kiểm tra lại kết nối MCP server."
+                except Exception as e:
+                    import traceback
+                    print(f"❌ Error creating metadata directly: {e}")
+                    print(traceback.format_exc())
         
         # If direct creation failed or wasn't attempted, continue with normal flow
         config = {

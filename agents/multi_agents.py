@@ -2,6 +2,7 @@ import os
 import sys
 import asyncio
 import re
+from typing import Dict, List, Any, Optional, Annotated, Tuple, Union
 
 from typing import Dict, Any, List, AsyncIterable, TypedDict, Annotated, Optional
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -95,100 +96,190 @@ class ReflectionAgent:
             file_found = None
             extraction_result = None
             classification_result = None
-            metadata_id = None
+            metadata_ids = []
             
-            # Phân tích kết quả từ từng agent
+            # Thu thập thông tin chi tiết về file - SỬ DỤNG MỘT NGUỒN DUY NHẤT
+            detailed_files = []
+            classification_labels = state.get("classification_labels", {})
+            
+            # Lấy file count từ state trước tiên (đây là nguồn tin cậy nhất)
+            file_count = state.get("file_count", 0)
+            actual_files = []
+            
+            # Xác định nguồn file paths chính xác
+            if "accessible_files" in state and state["accessible_files"]:
+                actual_files = state["accessible_files"]
+                file_count = len(actual_files)
+                log(f"ReflectionAgent debug - Using accessible_files: {len(actual_files)} files")
+            elif "classified_files" in state and state["classified_files"]:
+                actual_files = state["classified_files"]
+                file_count = len(actual_files)
+                log(f"ReflectionAgent debug - Using classified_files: {len(actual_files)} files")
+            elif "processed_files" in state and state["processed_files"]:
+                actual_files = state["processed_files"]
+                file_count = len(actual_files)
+                log(f"ReflectionAgent debug - Using processed_files: {len(actual_files)} files")
+            else:
+                # Fallback: tìm từ agent results
+                if "agent_results" in state and "rag" in state["agent_results"]:
+                    rag_result = state["agent_results"]["rag"]
+                    if isinstance(rag_result, dict) and "file_paths" in rag_result:
+                        actual_files = rag_result["file_paths"]
+                        file_count = len(actual_files)
+                        log(f"ReflectionAgent debug - Using rag agent results: {len(actual_files)} files")
+            
+            # Tạo detailed_files MỘT LẦN DUY NHẤT từ actual_files
+            if actual_files:
+                for file_path in actual_files:
+                    file_name = os.path.basename(file_path)
+                    file_info = {
+                        "file_name": file_name,
+                        "file_path": file_path,
+                        "label": classification_labels.get(file_name, ""),
+                        "metadata_id": ""
+                    }
+                    detailed_files.append(file_info)
+                
+                log(f"ReflectionAgent debug - Created detailed_files for {len(detailed_files)} files")
+            
+            # Cập nhật file_count trong state
+            state["file_count"] = file_count
+            
+            # Phân tích kết quả từ từng agent chỉ để lấy thông tin bổ sung
             for message in state["messages"]:
                 if not isinstance(message, AIMessage):
                     continue
                     
                 content = message.content
                 
-                # Kết quả từ RAG/Filesystem agent - tìm file
-                if ("🗂️" in content or "🔍" in content) and "Tôi đã tìm thấy file:" in content:
-                    # Trích xuất đường dẫn file
-                    file_pattern = r'Tôi đã tìm thấy file:\s*([^\n\r]+)'
-                    file_matches = re.findall(file_pattern, content)
-                    if file_matches:
-                        file_found = file_matches[0].strip()
-                        key_findings.append(f"Đã tìm thấy file: {os.path.basename(file_found)}")
+                # Kết quả từ RAG/Filesystem agent - chỉ để xác nhận
+                if any(indicator.lower() in content.lower() for indicator in [
+                    "Tôi đã tìm thấy file:", "Tìm thấy các file sau:", "Đã tìm thấy các file:",
+                    "Tìm thấy nhiều file:", "files found:", "found files:"
+                ]):
+                    if file_count == 1:
+                        key_findings.append(f"Đã tìm thấy 1 file")
+                        file_found = f"1 file: {detailed_files[0]['file_name']}" if detailed_files else "1 file"
+                    elif file_count > 1:
+                        key_findings.append(f"Đã tìm thấy {file_count} files")
+                        if detailed_files:
+                            if file_count <= 3:
+                                file_names = [f["file_name"] for f in detailed_files]
+                                file_found = f"{file_count} files: {', '.join(file_names)}"
+                            else:
+                                file_names = [f["file_name"] for f in detailed_files[:2]]
+                                file_found = f"{file_count} files: {', '.join(file_names)} và {file_count - 2} file khác"
+                    break
                 
                 # Kết quả từ Text Extraction agent
-                elif "📄" in content and "Kết quả trích xuất từ file" in content:
-                    # Trích xuất preview nội dung
-                    content_lines = content.split('\n')
-                    preview_lines = []
-                    found_content = False
-                    
-                    for line in content_lines:
-                        if found_content and line.strip():
-                            preview_lines.append(line.strip())
-                            if len(preview_lines) >= 3:  # Lấy 3 dòng đầu
-                                break
-                        elif "Kết quả trích xuất từ file" in line:
-                            found_content = True
-                    
-                    if preview_lines:
-                        preview = " ".join(preview_lines)[:100] + "..."
-                        extraction_result = preview
+                elif "📝" in content and ("Kết quả trích xuất từ file" in content or "Kết quả trích xuất từ các file" in content):
+                    if file_count > 1:
+                        key_findings.append(f"Đã trích xuất nội dung từ {file_count} files")
+                    else:
                         key_findings.append(f"Đã trích xuất nội dung từ file")
                 
                 # Kết quả từ File Classification agent
                 elif "🏷️" in content and "Kết quả phân loại file" in content:
-                    # Trích xuất nhãn phân loại
-                    label_pattern = r'Kết quả phân loại file[^:]*:\s*([^\n\r]+)'
-                    label_matches = re.findall(label_pattern, content)
-                    if label_matches:
-                        classification_result = label_matches[0].strip()
-                        key_findings.append(f"Đã phân loại file: {classification_result}")
+                    if file_count > 1:
+                        key_findings.append(f"Đã phân loại {file_count} files")
+                    else:
+                        key_findings.append(f"Đã phân loại file")
                 
                 # Kết quả từ Metadata agent
                 elif "📋" in content and "Đã lưu metadata thành công" in content:
                     # Trích xuất metadata ID
+                    import re
                     id_pattern = r'ID:\s*([a-f0-9-]+)'
                     id_matches = re.findall(id_pattern, content)
+                    
                     if id_matches:
-                        metadata_id = id_matches[0]
-                        key_findings.append(f"Đã lưu metadata với ID: {metadata_id}")
+                        metadata_ids.extend(id_matches)
+                        
+                        # Cập nhật metadata ID cho các file trong detailed_files
+                        for i, file_info in enumerate(detailed_files):
+                            if i < len(metadata_ids):
+                                file_info["metadata_id"] = metadata_ids[i]
+                        
+                        if file_count > 1:
+                            key_findings.append(f"Đã lưu metadata cho {file_count} files")
+                        else:
+                            key_findings.append(f"Đã lưu metadata với ID: {metadata_ids[0]}")
             
-            # Tạo prompt cho reflection
+            # Tạo phần mô tả chi tiết về các file đã tìm thấy
+            file_info = ""
+            if detailed_files:
+                if len(detailed_files) == 1:
+                    file_detail = f"File: {detailed_files[0]['file_name']}"
+                    if detailed_files[0].get("label"):
+                        file_detail += f", Phân loại: {detailed_files[0]['label']}"
+                    if detailed_files[0].get("metadata_id"):
+                        file_detail += f", Metadata ID: {detailed_files[0]['metadata_id']}"
+                    file_info = f"Đã tìm thấy 1 file:\n- {file_detail}"
+                else:
+                    file_list = []
+                    for file_detail in detailed_files[:3]:  # Giới hạn hiển thị chi tiết 3 file đầu tiên
+                        detail_str = f"File: {file_detail['file_name']}"
+                        if file_detail.get("label"):
+                            detail_str += f", Phân loại: {file_detail['label']}"
+                        if file_detail.get("metadata_id"):
+                            detail_str += f", Metadata ID: {file_detail['metadata_id']}"
+                        file_list.append(detail_str)
+                    
+                    file_info = f"Đã tìm thấy {len(detailed_files)} files:\n- " + "\n- ".join(file_list)
+                    if len(detailed_files) > 3:
+                        file_info += f"\n- và {len(detailed_files) - 3} file khác"
+            elif file_found:
+                file_info = file_found
+            
+            # Tạo prompt với thông tin rõ ràng hơn
             reflection_prompt = f"""
             Bạn là một AI assistant chuyên về tổng hợp kết quả và trả lời người dùng một cách tự nhiên, thân thiện.
             
             YÊU CẦU BAN ĐẦU CỦA NGƯỜI DÙNG:
             "{original_query}"
             
-            CÁC AGENT ĐÃ ĐƯỢC SỬ DỤNG:
-            {', '.join(used_tools)}
+            CÁC CÔNG CỤ ĐÃ SỬ DỤNG:
+            {', '.join(used_tools) if used_tools else 'Không có'}
             
-            KẾT QUẢ QUAN TRỌNG:
-            {chr(10).join(f"- {finding}" for finding in key_findings)}
+            KẾT QUẢ CHÍNH:
+            {chr(10).join(f"- {finding}" for finding in key_findings) if key_findings else "- Không có kết quả nào được ghi nhận"}
             
-            THÔNG TIN CHI TIẾT:
-            - File tìm thấy: {file_found if file_found else "Không có"}
-            - Nội dung trích xuất: {"Có" if extraction_result else "Không có"}
-            - Phân loại: {classification_result if classification_result else "Không có"}
-            - Metadata ID: {metadata_id if metadata_id else "Không có"}
+            THÔNG TIN CHI TIẾT VỀ FILE:
+            {file_info if file_info else "- Không tìm thấy file nào phù hợp"}
             
-            NHIỆM VỤ:
-            Hãy tạo một câu trả lời cuối cùng ngắn gọn, tự nhiên và thân thiện để trả lời yêu cầu ban đầu của người dùng.
-            Câu trả lời nên:
-            1. Xác nhận đã hoàn thành yêu cầu
-            2. Nêu rõ những gì đã làm được
-            3. Cung cấp thông tin quan trọng (tên file, metadata ID, v.v.)
-            4. Sử dụng ngôn ngữ tự nhiên, không liệt kê dưới dạng bullet points
-            5. Ngắn gọn, không quá 3-4 câu
+            QUAN TRỌNG: Đã tìm thấy CHÍNH XÁC {file_count} file{'s' if file_count > 1 else ''}.
             
-            VÍ DỤ CẤU TRÚC:
-            "Tôi đã [hành động chính] và [kết quả]. File [tên file] đã được [xử lý như thế nào] với [thông tin quan trọng]."
+            YÊU CẦU:
+            Hãy tạo một câu trả lời ngắn gọn, tự nhiên và hữu ích dựa trên thông tin trên.
             
-            QUAN TRỌNG: Chỉ trả về câu trả lời cuối cùng, không giải thích thêm.
+            HƯỚNG DẪN TRẢ LỜI:
+            1. Nếu đã tìm thấy file:
+               - Xác nhận đã tìm thấy {file_count} file{'s' if file_count > 1 else ''}
+               - Liệt kê tên các file chính (nếu ít hơn 5 file) hoặc số lượng file (nếu nhiều hơn 5)
+               - Mô tả ngắn gọn về các file đã tìm thấy
+               
+            2. Nếu không tìm thấy file:
+               - Thông báo không tìm thấy file phù hợp
+               - Đề xuất các từ khóa tìm kiếm khác nếu có thể
+            
+            3. Nếu có lỗi hoặc vấn đề:
+               - Giải thích ngắn gọn vấn đề
+               - Đề xuất hướng khắc phục nếu có
+            
+            LƯU Ý QUAN TRỌNG:
+            - Luôn đề cập đến ĐÚNG số lượng file đã tìm thấy ({file_count} file{'s' if file_count > 1 else ''})
+            - Sử dụng ngôn ngữ tự nhiên, gần gũi
+            - Giới hạn trong 2-3 câu
+            - Không cần giải thích thêm sau câu trả lời
+            
+            CÂU TRẢ LỜI (chỉ trả về câu trả lời, không có phần giải thích):
             """
             
             # Gọi LLM để tạo reflection response
             response = await self.model.ainvoke(reflection_prompt)
             reflection_response = response.content.strip()
             
+            log(f"ReflectionAgent debug - Final file count for response: {file_count}, detailed_files: {len(detailed_files)}")
             log(f"Reflection response generated: {reflection_response}")
             return reflection_response
             
@@ -620,7 +711,7 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
             # Update the state with the corrected sequence
             if new_agents != current_agents:
                 log(f"Đã điều chỉnh thứ tự agent: {current_agents} -> {new_agents}")
-                state["chain_of_thought"].append(f"Điều chỉnh thứ tự agent để đảm bảo workflow chính xác: {', '.join(new_agents)}")
+                # state["chain_of_thought"].append(f"Điều chỉnh thứ tự agent để đảm bảo workflow chính xác: {', '.join(new_agents)}")
                 state["current_agents"] = new_agents
         
         return state
@@ -809,7 +900,8 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
 
             # Add the agent's response to the state
             response_content = f"🗂️ {agent_response.content}"
-            print(f"FilesystemAgent response: {response_content[:100]}...")
+            print(f"FilesystemAgent response: {response_content}")
+            log(f"FilesystemAgent response: {response_content}")
             state["messages"].append(AIMessage(content=response_content))
             
             # Store result in agent_results
@@ -967,6 +1059,21 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
             else:
                 response_content = str(response)
                 file_paths = []
+                
+                # Nếu RAG trả về chuỗi văn bản có chứa đường dẫn file, trích xuất chúng
+                # Mẫu: "Tôi đã tìm thấy các file sau:\n1. C:\path\to\file1.docx\n2. C:\path\to\file2.docx"
+                if "\n" in response_content and ("Tôi đã tìm thấy" in response_content or "tìm thấy các file" in response_content):
+                    lines = response_content.split("\n")
+                    for line in lines:
+                        # Tìm các dòng có đường dẫn file
+                        if line.strip().startswith("1.") or line.strip().startswith("2.") or line.strip().startswith("3."):
+                            # Trích xuất đường dẫn file từ dòng
+                            parts = line.strip().split(".", 1)
+                            if len(parts) > 1:
+                                file_path = parts[1].strip()
+                                file_paths.append(file_path)
+                    
+                    log(f"Extracted {len(file_paths)} file paths from RAG response text: {file_paths}")
 
             # Add the agent's response to the state with file_paths as additional kwargs if available
             print(f"RAGAgent response: {response_content[:200]}...")
@@ -983,6 +1090,10 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
             if "agent_results" not in state:
                 state["agent_results"] = {}
             state["agent_results"]["rag"] = response_content
+            
+            # Lưu đường dẫn file vào state để các agent khác có thể sử dụng
+            if file_paths:
+                state["processed_files"] = file_paths
                 
             return state
             
@@ -1012,31 +1123,48 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
                 state["used_tools"] = []
             state["used_tools"].append("metadata")
 
-            # Extract file path from previous agent messages
-            file_path = None
+            # Extract file paths from previous agent messages
+            file_paths = []
             file_content = None
             file_classification = None
             
-            # First, look for file paths from RAG or filesystem agents
-            for message in reversed(state["messages"]):
-                if isinstance(message, AIMessage):
-                    # Check for file_paths in additional_kwargs (from RAG agent)
-                    if hasattr(message, '_additional_kwargs') and 'file_paths' in message._additional_kwargs:
-                        file_paths = message._additional_kwargs['file_paths']
-                        if file_paths and isinstance(file_paths, list) and len(file_paths) > 0:
-                            file_path = file_paths[0]  # Take the first file
-                            log(f"Found file path from RAG agent: {file_path}")
-                            break
-                    
-                    # Check for file paths in message content
-                    if "Tôi đã tìm thấy file:" in message.content:
-                        import re
-                        file_pattern = r'Tôi đã tìm thấy file:\s*([A-Z]:\\[^\s\n\r]+)'
-                        file_matches = re.findall(file_pattern, message.content)
-                        if file_matches:
-                            file_path = file_matches[0]
-                            log(f"Found file path from message content: {file_path}")
-                            break
+            # Kiểm tra xem có file paths đã được lưu trong state từ các agent trước đó không
+            if "accessible_files" in state:
+                file_paths = state["accessible_files"]
+                log(f"Found {len(file_paths)} file paths from state: {file_paths}")
+            elif "classified_files" in state:
+                file_paths = state["classified_files"]
+                log(f"Found {len(file_paths)} file paths from classified_files: {file_paths}")
+            else:
+                # First, look for file paths from RAG or filesystem agents
+                for message in reversed(state["messages"]):
+                    if isinstance(message, AIMessage):
+                        # Check for file_paths in additional_kwargs (from RAG agent)
+                        if hasattr(message, '_additional_kwargs') and 'file_paths' in message._additional_kwargs:
+                            paths = message._additional_kwargs['file_paths']
+                            if paths and isinstance(paths, list) and len(paths) > 0:
+                                file_paths = paths
+                                log(f"Found {len(file_paths)} file paths from RAG agent: {file_paths}")
+                                break
+                        
+                        # Check for file paths in message content
+                        if "Tôi đã tìm thấy file:" in message.content:
+                            import re
+                            # Tìm một file path
+                            file_pattern = r'Tôi đã tìm thấy file:\s*([A-Z]:\\[^\s\n\r]+)'
+                            file_matches = re.findall(file_pattern, message.content)
+                            if file_matches:
+                                file_paths = file_matches
+                                log(f"Found {len(file_paths)} file paths from message content: {file_paths}")
+                                break
+                            
+                            # Tìm nhiều file paths từ danh sách đánh số
+                            numbered_pattern = r'\d+\. ([A-Z]:\\[^\s\n\r]+)'
+                            numbered_matches = re.findall(numbered_pattern, message.content)
+                            if numbered_matches:
+                                file_paths = numbered_matches
+                                log(f"Found {len(file_paths)} file paths from numbered list: {file_paths}")
+                                break
             
             # Then, look for extracted content from text extraction agent
             for message in reversed(state["messages"]):
@@ -1105,7 +1233,7 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
                     # Look for classification label in different possible formats
                     import re
                     
-                    # Format 1: "Phân loại: Giáo dục"
+                    # Format 1: "PhĐiều chỉnh thứ tự agent để đảm bảo workflow chính xác:n loại: Giáo dục"
                     label_pattern1 = r'Phân loại:\s*([^\n\r]+)'
                     # Format 2: "Kết quả phân loại file ...: Giáo dục"
                     label_pattern2 = r'Kết quả phân loại file[^:]*:\s*([^\n\r]+)'
@@ -1132,35 +1260,125 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
             # Prepare the metadata parameters
             metadata_params = {}
             
-            # Set file information
-            if file_path:
+            # Xử lý nhiều file paths
+            if file_paths:
                 import os
-                metadata_params['file_name'] = os.path.basename(file_path)
-                metadata_params['file_path'] = file_path
+                # Nếu có nhiều file, tạo danh sách tên file
+                if len(file_paths) > 1:
+                    file_names = [os.path.basename(path) for path in file_paths]
+                    metadata_params['file_names'] = file_names
+                    metadata_params['file_paths'] = file_paths
+                    # Sử dụng file đầu tiên làm file chính cho metadata
+                    metadata_params['file_name'] = file_names[0] + f" và {len(file_names)-1} file khác"
+                    metadata_params['file_path'] = file_paths[0]
+                    metadata_params['is_multi_file'] = True
+                    metadata_params['file_count'] = len(file_paths)
+                else:
+                    # Nếu chỉ có một file
+                    metadata_params['file_name'] = os.path.basename(file_paths[0])
+                    metadata_params['file_path'] = file_paths[0]
+                    metadata_params['is_multi_file'] = False
             
+            # Always pass classification labels if available
+            if "classification_labels" in state:
+                metadata_params['classification_labels'] = state.get("classification_labels", {})
+                log(f"Passing classification_labels to metadata agent: {metadata_params['classification_labels']}")
+                
             # Set classification if available
             if file_classification and file_classification.lower() not in ["không xác định", "chưa phân loại", "không có phân loại"]:
                 # Clean up the classification label
                 label = file_classification.split(':')[-1].strip()
                 metadata_params['label'] = label
+            else:
+                # Check if we can extract classification from state
+                if "classified_files" in state and "classification_labels" in state:
+                    # Get labels from state
+                    labels = state.get("classification_labels", {})
+                    if labels:
+                        # Use the first label as default
+                        first_label = next(iter(labels.values()))
+                        metadata_params['label'] = first_label
+                        log(f"Using label from state: {first_label}")
+            
+            # Check if we have individual file extraction results in the state
+            individual_contents = {}
+            if "text_extraction_results" in state:
+                extraction_results = state["text_extraction_results"]
+                log(f"Found individual text extraction results for {len(extraction_results)} files")
+                
+                # Convert file paths to file names for easier lookup
+                for file_path, content in extraction_results.items():
+                    file_name = os.path.basename(file_path)
+                    individual_contents[file_name] = content
+                    log(f"Found content for {file_name}: {len(content)} characters")
             
             # Set content if available
-            if file_content:
-                # Ensure content is properly formatted and not too long
-                content = file_content.strip()
-                if len(content) > 4000:  # Truncate if too long for the model
-                    content = content[:4000] + "... [nội dung bị cắt bớt]"
-                metadata_params['content'] = content
-                log(f"Content length for metadata: {len(content)} characters")
+            if 'is_multi_file' in metadata_params and metadata_params['is_multi_file']:
+                # For multi-file case, we'll still use the combined content for the preview
+                if file_content:
+                    # Ensure content is properly formatted and not too long
+                    content = file_content.strip()
+                    if len(content) > 4000:  # Truncate if too long for the model
+                        content = content[:4000] + "... [nội dung bị cắt bớt]"
+                    metadata_params['content'] = content
+                    log(f"Content length for metadata preview: {len(content)} characters")
+                    
+                    # Also store individual contents if we have them
+                    if individual_contents:
+                        metadata_params['individual_contents'] = individual_contents
+                        log(f"Added individual contents for {len(individual_contents)} files")
+                else:
+                    # Provide a placeholder when no content is available
+                    log("Warning: No content found for metadata. Using placeholder.")
+                    file_names = metadata_params.get('file_names', [])
+                    placeholder = f"Multiple files: {', '.join(file_names[:3])}{'...' if len(file_names) > 3 else ''} (no content extracted)"
+                    metadata_params['content'] = placeholder
+                    log(f"Using placeholder content: {placeholder}")
+            else:
+                # Single file case
+                file_name = metadata_params.get('file_name', 'unknown_file')
+                
+                # Try to get content from individual extraction results first
+                if file_name in individual_contents:
+                    content = individual_contents[file_name]
+                    log(f"Using individual content for {file_name}: {len(content)} characters")
+                    metadata_params['content'] = content
+                elif file_content:
+                    # Fall back to general content if available
+                    content = file_content.strip()
+                    if len(content) > 4000:  # Truncate if too long for the model
+                        content = content[:4000] + "... [nội dung bị cắt bớt]"
+                    metadata_params['content'] = content
+                    log(f"Using general content for {file_name}: {len(content)} characters")
+                else:
+                    # No content available, use placeholder
+                    placeholder = f"File: {file_name} (no content extracted)"
+                    metadata_params['content'] = placeholder
+                    log(f"Using placeholder content: {placeholder}")
             
             # Build the enhanced query for the metadata agent
             enhanced_query = "Tôi cần tạo và lưu metadata với các thông tin sau:\n\n"
             
             # Add file information if available
-            if 'file_name' in metadata_params:
-                enhanced_query += f"- TÊN FILE: {metadata_params['file_name']}\n"
-            if 'file_path' in metadata_params:
-                enhanced_query += f"- ĐƯỜNG DẪN: {metadata_params['file_path']}\n"
+            if 'is_multi_file' in metadata_params and metadata_params['is_multi_file']:
+                # Thông tin cho nhiều file
+                enhanced_query += f"- NHÓM FILE: {metadata_params['file_count']} files\n"
+                enhanced_query += f"- TÊN FILE CHÍNH: {metadata_params['file_name']}\n"
+                
+                # Thêm danh sách tất cả các file
+                file_list = "\n".join([f"  + {i+1}. {name}" for i, name in enumerate(metadata_params['file_names'])])
+                enhanced_query += f"- DANH SÁCH FILES:\n{file_list}\n"
+                
+                # Thêm đường dẫn file chính
+                enhanced_query += f"- ĐƯỜNG DẪN CHÍNH: {metadata_params['file_path']}\n"
+            else:
+                # Thông tin cho một file
+                if 'file_name' in metadata_params:
+                    enhanced_query += f"- TÊN FILE: {metadata_params['file_name']}\n"
+                if 'file_path' in metadata_params:
+                    enhanced_query += f"- ĐƯỜNG DẪN: {metadata_params['file_path']}\n"
+            
+            # Thêm phân loại nếu có
             if 'label' in metadata_params:
                 enhanced_query += f"- PHÂN LOẠI: {metadata_params['label']} (tự động)\n"
             
@@ -1242,15 +1460,26 @@ LƯU Ý CUỐI CÙNG:
                 
                 # Call the metadata agent with the enhanced query and metadata
                 log("Invoking MetadataAgent...")
+                
+                # Chuẩn bị metadata cho agent
+                metadata_for_agent = {
+                    'file_name': metadata_params.get('file_name'),
+                    'file_path': metadata_params.get('file_path'),
+                    'label': metadata_params.get('label'),
+                    'content': metadata_params.get('content', '')
+                }
+                
+                # Thêm thông tin về nhiều file nếu có
+                if 'is_multi_file' in metadata_params and metadata_params['is_multi_file']:
+                    metadata_for_agent['is_multi_file'] = True
+                    metadata_for_agent['file_count'] = metadata_params.get('file_count')
+                    metadata_for_agent['file_names'] = metadata_params.get('file_names', [])
+                    metadata_for_agent['file_paths'] = metadata_params.get('file_paths', [])
+                
                 response = metadata_agent.invoke(
                     query=enhanced_query,
                     sessionId=self.session_id,
-                    metadata={
-                        'file_name': metadata_params.get('file_name'),
-                        'file_path': metadata_params.get('file_path'),
-                        'label': metadata_params.get('label'),
-                        'content': metadata_params.get('content', '')
-                    }
+                    metadata=metadata_for_agent
                 )
                 log("MetadataAgent completed successfully")
                 
@@ -1281,7 +1510,22 @@ LƯU Ý CUỐI CÙNG:
                             break
                     
                     if metadata_id:
-                        response_content = f"✅ Đã lưu metadata thành công. ID: {metadata_id}"
+                        # Tạo phản hồi dựa trên số lượng file
+                        if 'is_multi_file' in metadata_params and metadata_params['is_multi_file']:
+                            file_count = metadata_params.get('file_count', 0)
+                            file_names = metadata_params.get('file_names', [])
+                            
+                            # Tạo danh sách tên file ngắn gọn
+                            if len(file_names) > 3:
+                                file_list = f"{', '.join(file_names[:2])} và {len(file_names)-2} file khác"
+                            else:
+                                file_list = ", ".join(file_names)
+                                
+                            response_content = f"✅ Đã lưu metadata cho {file_count} files ({file_list}). ID: {metadata_id}"
+                        else:
+                            file_name = metadata_params.get('file_name', 'không xác định')
+                            response_content = f"✅ Đã lưu metadata cho file {file_name} thành công. ID: {metadata_id}"
+                            
                         log(f"Metadata saved with ID: {metadata_id}")
                         
                         # Also check if the metadata was actually saved to MCP
@@ -1301,10 +1545,28 @@ LƯU Ý CUỐI CÙNG:
                     else:
                         # If no ID found, check if this is an error message
                         error_keywords = ['lỗi', 'error', 'failed', 'thất bại', 'không tìm thấy', 'not found']
-                        if any(keyword in response.lower() for keyword in error_keywords):
-                            response_content = f"❌ Lỗi khi xử lý metadata: {response}"
+                        
+                        # Tạo phản hồi dựa trên số lượng file khi có lỗi
+                        if 'is_multi_file' in metadata_params and metadata_params['is_multi_file']:
+                            file_count = metadata_params.get('file_count', 0)
+                            file_names = metadata_params.get('file_names', [])
+                            
+                            # Tạo danh sách tên file ngắn gọn
+                            if len(file_names) > 3:
+                                file_list = f"{', '.join(file_names[:2])} và {len(file_names)-2} file khác"
+                            else:
+                                file_list = ", ".join(file_names)
+                                
+                            if any(keyword in response.lower() for keyword in error_keywords):
+                                response_content = f"❌ Lỗi khi xử lý metadata cho {file_count} files ({file_list}): {response}"
+                            else:
+                                response_content = f"ℹ️ Đã xử lý metadata cho {file_count} files ({file_list}), nhưng không tìm thấy ID: {response}"
                         else:
-                            response_content = f"ℹ️ Đã xử lý metadata: {response}"
+                            file_name = metadata_params.get('file_name', 'không xác định')
+                            if any(keyword in response.lower() for keyword in error_keywords):
+                                response_content = f"❌ Lỗi khi xử lý metadata cho file {file_name}: {response}"
+                            else:
+                                response_content = f"ℹ️ Đã xử lý metadata cho file {file_name}, nhưng không tìm thấy ID: {response}"
                         
                         log(f"Metadata agent response (no ID found): {response}")
                         
@@ -1313,10 +1575,17 @@ LƯU Ý CUỐI CÙNG:
                 log(f"MetadataAgent response: {formatted_response[:200]}...")
                 state["messages"].append(AIMessage(content=formatted_response))
                 
-                # Store result in agent_results
+                # Store result in agent_results even if no metadata ID was found
                 if "agent_results" not in state:
                     state["agent_results"] = {}
-                state["agent_results"]["metadata"] = response_content
+                    
+                state["agent_results"]["metadata"] = {
+                    "metadata_id": metadata_id,
+                    "response": response_content,
+                    "is_multi_file": metadata_params.get('is_multi_file', False),
+                    "file_count": metadata_params.get('file_count', 1) if metadata_params.get('file_name') else 0,
+                    "success": metadata_id is not None
+                }
                 
                 # Store metadata info in the state for future reference
                 if 'metadata' not in state:
@@ -1328,8 +1597,51 @@ LƯU Ý CUỐI CÙNG:
                 if metadata_id:  # Use the metadata_id variable that we defined earlier
                     state['metadata']['metadata_ids'].append(metadata_id)
                     log(f"Added metadata ID to state: {metadata_id}")
+                    
+                    # Lưu thông tin về các file đã xử lý metadata
+                    if 'is_multi_file' in metadata_params and metadata_params['is_multi_file']:
+                        # Lưu danh sách các file đã xử lý
+                        if 'processed_files' not in state['metadata']:
+                            state['metadata']['processed_files'] = []
+                            
+                        # Thêm các file vào danh sách đã xử lý
+                        file_paths = metadata_params.get('file_paths', [])
+                        state['metadata']['processed_files'].extend(file_paths)
+                        log(f"Added {len(file_paths)} files to processed_files in state")
+                        
+                        # Lưu thông tin về nhóm file
+                        if 'file_groups' not in state['metadata']:
+                            state['metadata']['file_groups'] = {}
+                            
+                        # Tạo nhóm file với metadata_id làm key
+                        state['metadata']['file_groups'][metadata_id] = {
+                            'file_count': metadata_params.get('file_count', 0),
+                            'file_paths': file_paths,
+                            'file_names': metadata_params.get('file_names', []),
+                            'label': metadata_params.get('label', 'không xác định')
+                        }
+                    else:
+                        # Lưu thông tin cho một file
+                        if 'processed_files' not in state['metadata']:
+                            state['metadata']['processed_files'] = []
+                            
+                        file_path = metadata_params.get('file_path')
+                        if file_path:
+                            state['metadata']['processed_files'].append(file_path)
+                            log(f"Added file {file_path} to processed_files in state")
                 else:
                     log("No metadata ID to add to state", level='warning')
+                
+                # Lưu thông tin về agent_results
+                if "agent_results" not in state:
+                    state["agent_results"] = {}
+                    
+                state["agent_results"]["metadata"] = {
+                    "metadata_id": metadata_id,
+                    "response": response_content,
+                    "is_multi_file": metadata_params.get('is_multi_file', False),
+                    "file_count": metadata_params.get('file_count', 1) if metadata_params.get('file_name') else 0
+                }
                 
                 return state
                 
@@ -1355,29 +1667,29 @@ LƯU Ý CUỐI CÙNG:
         Run the text extraction agent on the current query.
         """
         try:
-            # Tìm file path từ các tin nhắn trước đó dựa vào câu "Tôi đã tìm thấy file:"
-            file_path = None
+            # Tìm file paths từ các tin nhắn trước đó
+            file_paths = []
             for message in reversed(state["messages"]):
                 if isinstance(message, AIMessage):
-                    log(f"Checking message for file path: {message.content[:100]}...")
+                    log(f"Checking message for file paths: {message.content[:100]}...")
                     
                     # Kiểm tra xem tin nhắn có phải là từ RAG agent không (có thể có trường file_paths)
                     if hasattr(message, '_additional_kwargs') and 'file_paths' in message._additional_kwargs:
                         log(f"Found RAG agent message with file_paths field")
-                        file_paths = message._additional_kwargs['file_paths']
-                        if file_paths and isinstance(file_paths, list) and len(file_paths) > 0:
-                            file_path = file_paths[0]  # Lấy file đầu tiên
-                            log(f"Extracted file path from RAG agent: {file_path}")
+                        paths = message._additional_kwargs['file_paths']
+                        if paths and isinstance(paths, list) and len(paths) > 0:
+                            file_paths.extend(paths)
+                            log(f"Extracted {len(paths)} file paths from RAG agent")
                             break
                     
-                    # Tìm kiếm câu "Tôi đã tìm thấy file:" trong tin nhắn
+                    # Tìm kiếm câu "Tôi đã tìm thấy file:" hoặc "Tôi đã tìm thấy {n} files:" trong tin nhắn
                     if "Tôi đã tìm thấy file:" in message.content:
-                        log(f"Found agent message with standard format")
+                        log(f"Found agent message with standard format for single file")
                         
                         # Tìm đường dẫn file sau câu "Tôi đã tìm thấy file:"
                         import re
                         
-                        # Tìm sau "Tôi đã tìm thấy file:" - kiểm tra cả đường dẫn đầy đủ và tên file
+                        # Tìm sau "Tôi đã tìm thấy file:" - kiểm tra cả đường dẫn đầy đủ
                         full_path_pattern = r'Tôi đã tìm thấy file:\s*([A-Z]:\\[^\s\n\r]+)'
                         full_path_matches = re.findall(full_path_pattern, message.content)
                         
@@ -1386,10 +1698,28 @@ LƯU Ý CUỐI CÙNG:
                             raw_path = full_path_matches[0]
                             # Loại bỏ các ký tự không mong muốn có thể có ở cuối đường dẫn
                             if raw_path.endswith("'}"):
-                                file_path = raw_path[:-2]
+                                file_paths.append(raw_path[:-2])
                             else:
-                                file_path = raw_path
-                            log(f"Extracted full file path: {file_path}")
+                                file_paths.append(raw_path)
+                            log(f"Extracted full file path: {file_paths[-1]}")
+                            break
+                    
+                    # Tìm nhiều file từ định dạng "Tôi đã tìm thấy {n} files:"
+                    elif "files:" in message.content and "Tôi đã tìm thấy" in message.content:
+                        log(f"Found agent message with multiple files format")
+                        import re
+                        
+                        # Tìm đường dẫn file từ danh sách đánh số
+                        multi_file_pattern = r'\d+\.\s*([A-Z]:\\[^\s\n\r]+)'
+                        multi_file_matches = re.findall(multi_file_pattern, message.content)
+                        
+                        if multi_file_matches:
+                            for raw_path in multi_file_matches:
+                                if raw_path.endswith("'}"):
+                                    file_paths.append(raw_path[:-2])
+                                else:
+                                    file_paths.append(raw_path)
+                            log(f"Extracted {len(multi_file_matches)} file paths from numbered list")
                             break
                     
                     # Dự phòng: Nếu không tìm thấy câu chuẩn, thử tìm bất kỳ đường dẫn Windows nào
@@ -1402,8 +1732,8 @@ LƯU Ý CUỐI CÙNG:
                         file_matches = re.findall(file_pattern, message.content)
                         
                         if file_matches:
-                            file_path = file_matches[0]
-                            log(f"Extracted file path using general pattern: {file_path}")
+                            file_paths.extend(file_matches)
+                            log(f"Extracted {len(file_matches)} file paths using general pattern")
                             break
 
             # Get the last message that's not from an agent
@@ -1413,8 +1743,8 @@ LƯU Ý CUỐI CÙNG:
                     query = message.content
                     break
 
-            # Kiểm tra quyền truy cập file nếu tìm thấy file path
-            if file_path:
+            # Kiểm tra quyền truy cập file nếu tìm thấy file paths
+            if file_paths:
                 # Import AccessControlManager
                 import sys
                 import os
@@ -1430,25 +1760,41 @@ LƯU Ý CUỐI CÙNG:
                 access_control_file = os.path.join(current_dir, "config", "access_control.json")
                 access_manager = AccessControlManager(access_control_file)
                 
-                # Kiểm tra quyền truy cập
-                has_access, reason = access_manager.check_file_access(file_path, user_role)
-                access_manager.log_access_attempt(file_path, user_role, has_access, reason)
+                # Kiểm tra quyền truy cập cho từng file
+                accessible_files = []
+                for file_path in file_paths:
+                    has_access, reason = access_manager.check_file_access(file_path, user_role)
+                    access_manager.log_access_attempt(file_path, user_role, has_access, reason)
+                    
+                    if has_access:
+                        log(f"Access granted for user role '{user_role}' to file '{file_path}'")
+                        accessible_files.append(file_path)
+                    else:
+                        log(f"Access denied for file '{file_path}': {reason}", level='warning')
                 
-                if not has_access:
-                    # Không có quyền truy cập, thông báo cho người dùng
-                    error_message = f"⚠️ Không thể trích xuất nội dung: {reason}"
+                if not accessible_files:
+                    # Không có quyền truy cập vào bất kỳ file nào, thông báo cho người dùng
+                    error_message = f"⚠️ Không thể trích xuất nội dung: Bạn không có quyền truy cập vào các file này"
                     state["messages"].append(AIMessage(content=error_message))
-                    log(f"Access denied: {reason}", level='warning')
+                    log(f"Access denied to all files", level='warning')
                     return state
                 
-                # Có quyền truy cập, tiếp tục với trích xuất
-                log(f"Access granted for user role '{user_role}' to file '{file_path}'")
-                enhanced_query = f"Extract text from the file at path {file_path}"
-                log(f"Enhanced query with file path: {enhanced_query}")
+                # Có quyền truy cập ít nhất một file, tiếp tục với trích xuất
+                if len(accessible_files) == 1:
+                    enhanced_query = f"Extract text from the file at path {accessible_files[0]}"
+                else:
+                    # Nếu có nhiều file, tạo danh sách đường dẫn
+                    file_paths_str = "\n".join([f"- {path}" for path in accessible_files])
+                    enhanced_query = f"Extract text from the following files:\n{file_paths_str}"
+                
+                log(f"Enhanced query with file paths: {enhanced_query[:100]}...")
+                
+                # Lưu danh sách file có quyền truy cập vào state để sử dụng sau này
+                state["accessible_files"] = accessible_files
             else:
                 # Không tìm thấy file path, sử dụng query gốc
                 enhanced_query = query
-                log(f"WARNING: No file path found! Running TextExtractionAgent with original query: {query}")
+                log(f"WARNING: No file paths found! Running TextExtractionAgent with original query: {query}")
 
             # Track that we're using this agent
             if "used_tools" not in state:
@@ -1510,37 +1856,58 @@ LƯU Ý CUỐI CÙNG:
                     content = extracted_text[1].strip()
                     log(f"Extracted the actual content after introduction: {content[:100]}...")
             
-            # Kiểm tra nếu content chứa "I'll use the extract_text_from" (câu trả lờ của agent)
-            if "I'll use the extract_text_from" in content and file_path:
+            # Kiểm tra nếu content chứa "I'll use the extract_text_from" (câu trả lời của agent)
+            if "I'll use the extract_text_from" in content and "accessible_files" in state:
                 log("Agent response contains tool usage description but no actual extraction result")
                 # Thử trực tiếp các hàm trích xuất dựa vào định dạng file
-                try:
-                    if file_path.lower().endswith('.pdf'):
-                        from agents.text_extraction_agent import extract_text_from_pdf
-                        content = extract_text_from_pdf(file_path)
-                        log("Directly extracted text from PDF")
-                    elif file_path.lower().endswith('.docx'):
-                        from agents.text_extraction_agent import extract_text_from_word
-                        content = extract_text_from_word(file_path)
-                        log("Directly extracted text from Word document")
-                    elif file_path.lower().endswith(('.ppt', '.pptx')):
-                        from agents.text_extraction_agent import extract_text_from_powerpoint
-                        content = extract_text_from_powerpoint(file_path)
-                        log("Directly extracted text from PowerPoint")
-                except Exception as e:
-                    log(f"Error in direct extraction: {e}", level='error')
+                from agents.text_extraction_agent import extract_text_from_pdf, extract_text_from_word, extract_text_from_powerpoint
+                
+                # Trích xuất nội dung từ từng file có quyền truy cập
+                extraction_results = {}
+                for file_path in state["accessible_files"]:
+                    try:
+                        if file_path.lower().endswith('.pdf'):
+                            extraction_results[file_path] = extract_text_from_pdf(file_path)
+                            log(f"Directly extracted text from PDF: {file_path}")
+                        elif file_path.lower().endswith('.docx'):
+                            extraction_results[file_path] = extract_text_from_word(file_path)
+                            log(f"Directly extracted text from Word document: {file_path}")
+                        elif file_path.lower().endswith(('.ppt', '.pptx')):
+                            extraction_results[file_path] = extract_text_from_powerpoint(file_path)
+                            log(f"Directly extracted text from PowerPoint: {file_path}")
+                    except Exception as e:
+                        log(f"Error in direct extraction for {file_path}: {e}", level='error')
+                        extraction_results[file_path] = f"Lỗi khi trích xuất: {str(e)}"
+                
+                # Nếu có kết quả trích xuất, gộp lại
+                if extraction_results:
+                    content = ""
+                    for file_path, extracted_text in extraction_results.items():
+                        content += f"\n\n--- Từ file {os.path.basename(file_path)} ---\n{extracted_text}\n"
+                    content = content.strip()
+                    
+                    # Store individual file extraction results in the state
+                    state["text_extraction_results"] = extraction_results
+                    log(f"Stored individual text extraction results for {len(extraction_results)} files in state")
 
             if not content.strip():
-                if file_path:
-                    content = f"Tôi đã cố gắng trích xuất nội dung từ file {file_path} nhưng không có kết quả đáng chú ý."
+                if "accessible_files" in state and state["accessible_files"]:
+                    if len(state["accessible_files"]) == 1:
+                        content = f"Tôi đã cố gắng trích xuất nội dung từ file {state['accessible_files'][0]} nhưng không có kết quả đáng chú ý."
+                    else:
+                        content = f"Tôi đã cố gắng trích xuất nội dung từ {len(state['accessible_files'])} files nhưng không có kết quả đáng chú ý."
                 else:
                     content = "Tôi đã cố gắng trích xuất nội dung nhưng không có kết quả đáng chú ý."
 
             # Add the agent's response to the state with clear indication of extraction results
-            if file_path:
-                response_content = f"📄 Kết quả trích xuất từ file {file_path}:\n\n{content}"
+            if "accessible_files" in state and state["accessible_files"]:
+                if len(state["accessible_files"]) == 1:
+                    response_content = f"📝 Kết quả trích xuất từ file {state['accessible_files'][0]}:\n\n{content}"
+                else:
+                    file_list = "\n".join([f"- {os.path.basename(f)}" for f in state["accessible_files"]])
+                    response_content = f"📝 Kết quả trích xuất từ {len(state['accessible_files'])} files:\n{file_list}\n\n{content}"
             else:
-                response_content = f"📄 {content}"
+                response_content = f"📝 {content}"
                 
             log(f"TextExtractionAgent response: {response_content[:100]}...")
             state["messages"].append(AIMessage(content=response_content))
@@ -1549,6 +1916,41 @@ LƯU Ý CUỐI CÙNG:
             if "agent_results" not in state:
                 state["agent_results"] = {}
             state["agent_results"]["text_extraction"] = content
+            
+            # If we have accessible_files but no text_extraction_results yet, create it
+            if "accessible_files" in state and "text_extraction_results" not in state:
+                # Create a mapping of file paths to extracted content
+                # For now, we'll assign the same content to all files if we can't distinguish
+                # This is better than having no content at all
+                extraction_results = {}
+                
+                # Check if content contains file-specific sections
+                import re
+                file_sections = re.split(r"\n\n---\s+Từ file\s+([^\n]+)\s+---\n", content)
+                
+                if len(file_sections) > 1:
+                    # Content is divided by file sections
+                    # First element is any text before the first file section
+                    # Then alternating file names and content
+                    for i in range(1, len(file_sections), 2):
+                        if i+1 < len(file_sections):
+                            file_name = file_sections[i]
+                            file_content = file_sections[i+1]
+                            
+                            # Find the matching file path
+                            for file_path in state["accessible_files"]:
+                                if os.path.basename(file_path) == file_name:
+                                    extraction_results[file_path] = file_content
+                                    log(f"Mapped content section to file: {file_name}")
+                                    break
+                else:
+                    # Content is not divided, assign to all files
+                    for file_path in state["accessible_files"]:
+                        extraction_results[file_path] = content
+                        log(f"Assigned full content to file: {os.path.basename(file_path)}")
+                
+                state["text_extraction_results"] = extraction_results
+                log(f"Created text_extraction_results for {len(extraction_results)} files from general content")
             
             # Analyze the response to suggest next agent
             log("Analyzing response to suggest next agent...")
@@ -1575,43 +1977,93 @@ LƯU Ý CUỐI CÙNG:
         try:
             # Tìm nội dung cần phân loại từ TextExtractionAgent
             content_to_classify = None
-            file_path = None
+            file_paths = []
             
             # Tìm kết quả từ TextExtractionAgent
             for message in reversed(state["messages"]):
-                if isinstance(message, AIMessage) and ("📄" in message.content or "[Text Extraction Agent]:" in message.content):
+                if isinstance(message, AIMessage) and ("📝" in message.content or "[Text Extraction Agent]:" in message.content):
                     # Trích xuất nội dung sau phần giới thiệu
                     text_parts = message.content.split(":\n\n", 1)
                     if len(text_parts) > 1:
                         content_to_classify = text_parts[1].strip()
                         log(f"Found content to classify from TextExtractionAgent: {content_to_classify[:100]}...")
                         
-                        # Tìm file path trong phần giới thiệu
-                        import re
-                        file_pattern = r'từ file ([A-Z]:\\[^\s\n\r]+)'
-                        file_matches = re.findall(file_pattern, text_parts[0])
-                        if file_matches:
-                            file_path = file_matches[0]
-                            log(f"Found file path: {file_path}")
+                        # Kiểm tra nếu là nhiều file
+                        
+                        # Tìm kiếm chuỗi "Kết quả trích xuất từ X files:"
+                        multi_file_pattern = r'Kết quả trích xuất từ (\d+) files:'
+                        multi_file_match = re.search(multi_file_pattern, text_parts[0])
+                        
+                        if multi_file_match:
+                            # Đây là kết quả từ nhiều file
+                            file_list_pattern = r'- ([^\n]+)'
+                            file_names = re.findall(file_list_pattern, text_parts[0])
+                            log(f"Found file names in extraction: {file_names}")
+                            
+                            # Nếu có accessible_files trong state, lấy đường dẫn đầy đủ
+                            if "accessible_files" in state and state["accessible_files"]:
+                                # Lọc các file paths dựa trên tên file đã tìm thấy
+                                for file_path in state["accessible_files"]:
+                                    file_name = os.path.basename(file_path)
+                                    # Kiểm tra xem file_name có trong danh sách file_names không
+                                    if any(name.strip() == file_name for name in file_names):
+                                        file_paths.append(file_path)
+                                log(f"Found {len(file_paths)} matching file paths from accessible_files")
+                        else:
+                            # Tìm file path đơn
+                            file_pattern = r'từ file ([A-Z]:\\[^\s\n\r]+)'
+                            file_matches = re.findall(file_pattern, text_parts[0])
+                            if file_matches:
+                                file_paths.append(file_matches[0])
+                                log(f"Found file path: {file_paths[0]}")
                         break
             
-            # Nếu không tìm thấy nội dung từ TextExtractionAgent, tìm file path từ FilesystemAgent
-            if not content_to_classify:
-                for message in reversed(state["messages"]):
-                    if isinstance(message, AIMessage) and "Tôi đã tìm thấy file:" in message.content:
-                        # Trích xuất đường dẫn file từ tin nhắn
-                        import re
-                        file_pattern = r'Tôi đã tìm thấy file:\s*([A-Z]:\\[^\s\n\r]+)'
-                        file_matches = re.findall(file_pattern, message.content)
-                        if file_matches:
-                            raw_path = file_matches[0]
-                            # Loại bỏ các ký tự không mong muốn có thể có ở cuối đường dẫn
-                            if raw_path.endswith("'}"):
-                                file_path = raw_path[:-2]
-                            else:
-                                file_path = raw_path
-                            log(f"Found file path from FilesystemAgent: {file_path}")
-                            break
+            # Nếu không tìm thấy nội dung từ TextExtractionAgent hoặc không có file paths, tìm từ các nguồn khác
+            if not content_to_classify or not file_paths:
+                # Kiểm tra nếu có accessible_files trong state
+                if "accessible_files" in state and state["accessible_files"]:
+                    file_paths = state["accessible_files"]
+                    log(f"Using accessible_files from state: {len(file_paths)} files")
+                else:
+                    # Tìm file path từ các tin nhắn
+                    for message in reversed(state["messages"]):
+                        if isinstance(message, AIMessage):
+                            # Kiểm tra nếu là tin nhắn từ RAG agent với file_paths
+                            if hasattr(message, '_additional_kwargs') and 'file_paths' in message._additional_kwargs:
+                                paths = message._additional_kwargs['file_paths']
+                                if paths and isinstance(paths, list):
+                                    file_paths.extend(paths)
+                                    log(f"Found {len(paths)} file paths from RAG agent")
+                                    break
+                            
+                            # Tìm kiếm câu "Tôi đã tìm thấy file:" trong tin nhắn
+                            elif "Tôi đã tìm thấy file:" in message.content:
+                                # Trích xuất đường dẫn file từ tin nhắn
+                                file_pattern = r'Tôi đã tìm thấy file:\s*([A-Z]:\\[^\s\n\r]+)'
+                                file_matches = re.findall(file_pattern, message.content)
+                                if file_matches:
+                                    raw_path = file_matches[0]
+                                    # Loại bỏ các ký tự không mong muốn có thể có ở cuối đường dẫn
+                                    if raw_path.endswith("'}"):
+                                        file_paths.append(raw_path[:-2])
+                                    else:
+                                        file_paths.append(raw_path)
+                                    log(f"Found file path from FilesystemAgent: {file_paths[-1]}")
+                                    break
+                            
+                            # Tìm nhiều file từ định dạng "Tôi đã tìm thấy {n} files:"
+                            elif "files:" in message.content and "Tôi đã tìm thấy" in message.content:
+                                multi_file_pattern = r'\d+\.\s*([A-Z]:\\[^\s\n\r]+)'
+                                multi_file_matches = re.findall(multi_file_pattern, message.content)
+                                
+                                if multi_file_matches:
+                                    for raw_path in multi_file_matches:
+                                        if raw_path.endswith("'}"):
+                                            file_paths.append(raw_path[:-2])
+                                        else:
+                                            file_paths.append(raw_path)
+                                    log(f"Found {len(multi_file_matches)} file paths from numbered list")
+                                    break
 
             # Get the last message that's not from an agent
             query = ""
@@ -1625,14 +2077,21 @@ LƯU Ý CUỐI CÙNG:
                 # Nếu có nội dung, sử dụng nội dung đó để phân loại
                 classification_query = f"Phân loại tệp theo nội dung: '{content_to_classify[:1000]}'"  # Giới hạn độ dài
                 log(f"Using extracted content for classification")
-            elif file_path:
-                # Nếu chỉ có đường dẫn, yêu cầu agent phân loại dựa trên file path
-                classification_query = f"Hãy phân loại file: {file_path}"
-                log(f"Using file path for classification: {file_path}")
+            elif file_paths:
+                # Nếu có đường dẫn file
+                if len(file_paths) == 1:
+                    # Nếu chỉ có một file, yêu cầu agent phân loại dựa trên file path
+                    classification_query = f"Hãy phân loại file: {file_paths[0]}"
+                    log(f"Using file path for classification: {file_paths[0]}")
+                else:
+                    # Nếu có nhiều file, tạo danh sách đường dẫn
+                    file_paths_str = "\n".join([f"- {path}" for path in file_paths])
+                    classification_query = f"Hãy phân loại các file sau:\n{file_paths_str}"
+                    log(f"Using multiple file paths for classification: {len(file_paths)} files")
             else:
                 # Không có cả nội dung và đường dẫn, sử dụng query gốc
                 classification_query = query
-                log(f"No content or file path found. Using original query: {query}")
+                log(f"No content or file paths found. Using original query: {query}")
             
             # Track that we're using this agent
             if "used_tools" not in state:
@@ -1668,13 +2127,47 @@ LƯU Ý CUỐI CÙNG:
                 classification_result = str(response)
                 log(f"Converted response to string: {classification_result}")
 
-            # Kiểm tra kết quả phân loại
+            # Kiểm tra kết quả phân loại và xử lý trùng lặp
             if not classification_result.strip():
                 classification_result = "Không thể phân loại"
+            else:
+                # Xử lý kết quả phân loại
+                lines = classification_result.strip().split('\n')
+                
+                # Kiểm tra số lượng file và số lượng dòng phân loại
+                if len(file_paths) > 1 and len(lines) > 1:
+                    # Nếu có nhiều file và nhiều dòng phân loại, giữ nguyên kết quả
+                    # vì mỗi dòng có thể là phân loại cho một file
+                    log(f"Keeping multiple classification results for {len(file_paths)} files")
+                elif len(lines) > 1 and len(set(lines)) == 1:
+                    # Nếu tất cả các dòng giống nhau, chỉ giữ lại một dòng
+                    classification_result = lines[0]
+                    log(f"Removed duplicate classification results, using: {classification_result}")
 
             # Add the agent's response to the state with clear indication of classification results
-            if file_path:
-                response_content = f"🏷️ Kết quả phân loại file {file_path}: {classification_result}"
+            if file_paths:
+                if len(file_paths) == 1:
+                    response_content = f"🏷️ Kết quả phân loại file {file_paths[0]}: {classification_result}"
+                else:
+                    # Tạo danh sách tên file
+                    file_names = [os.path.basename(path) for path in file_paths]
+                    file_list = ", ".join(file_names[:3])
+                    if len(file_names) > 3:
+                        file_list += f" và {len(file_names) - 3} file khác"
+                    
+                    # Kiểm tra nếu có nhiều kết quả phân loại cho nhiều file
+                    lines = classification_result.strip().split('\n')
+                    if len(lines) > 1 and len(lines) == len(file_paths):
+                        # Tạo danh sách phân loại theo từng file
+                        classifications = []
+                        for i, (file_name, classification) in enumerate(zip(file_names, lines)):
+                            classifications.append(f"{file_name}: {classification}")
+                        
+                        formatted_classifications = "\n- ".join(classifications)
+                        response_content = f"🏷️ Kết quả phân loại {len(file_paths)} files:\n- {formatted_classifications}"
+                    else:
+                        # Nếu số lượng phân loại không khớp với số file, sử dụng định dạng cũ
+                        response_content = f"🏷️ Kết quả phân loại {len(file_paths)} files ({file_list}): {classification_result}"
             else:
                 response_content = f"🏷️ Kết quả phân loại: {classification_result}"
                 
@@ -1687,6 +2180,34 @@ LƯU Ý CUỐI CÙNG:
             if "agent_results" not in state:
                 state["agent_results"] = {}
             state["agent_results"]["file_classification"] = classification_result
+            
+            # Lưu thông tin file đã phân loại vào state
+            if file_paths:
+                state["classified_files"] = file_paths
+                
+                # Extract and store classification labels
+                classification_labels = {}
+                
+                # Parse classification results
+                if len(file_paths) == 1:
+                    # Single file case
+                    classification_labels[os.path.basename(file_paths[0])] = classification_result.strip()
+                else:
+                    # Multi-file case
+                    lines = classification_result.strip().split('\n')
+                    
+                    # Check if we have one classification per file
+                    if len(lines) == len(file_paths):
+                        for i, path in enumerate(file_paths):
+                            classification_labels[os.path.basename(path)] = lines[i].strip()
+                    else:
+                        # If we don't have one classification per file, use the same classification for all files
+                        for path in file_paths:
+                            classification_labels[os.path.basename(path)] = classification_result.strip()
+                
+                # Store labels in state
+                state["classification_labels"] = classification_labels
+                log(f"Stored classification labels in state: {classification_labels}")
             
             # Analyze the response to suggest next agent
             log("Analyzing response to suggest next agent...")
@@ -1887,12 +2408,12 @@ LƯU Ý CUỐI CÙNG:
             state["completed"] = True
             state["chain_of_thought"].append(f"🚀{step_count + 1}. Hoàn thành xử lý")
             
-            # Generate execution summary
-            agent_summary = ""
-            if "agent_execution_order" in state:
-                agent_summary = f"Thứ tự thực thi các agent: {', '.join(state['agent_execution_order'])}"
-                log(f"Agent execution summary: {agent_summary}")
-                state["chain_of_thought"].append(f"🔍Tóm tắt thực thi: {agent_summary}")
+            # # Generate execution summary
+            # agent_summary = ""
+            # if "agent_execution_order" in state:
+            #     agent_summary = f"Thứ tự thực thi các agent: {', '.join(state['agent_execution_order'])}"
+            #     log(f"Agent execution summary: {agent_summary}")
+            #     state["chain_of_thought"].append(f"🔍Tóm tắt thực thi: {agent_summary}")
             
             # Add used tools to the summary
             log(f"Used tools: {state.get('used_tools', [])}")
