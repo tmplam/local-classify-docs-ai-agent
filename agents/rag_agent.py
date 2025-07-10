@@ -6,7 +6,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, UnstructuredPowerPointLoader
 from langchain_community.vectorstores import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import LLMChainExtractor
 from langchain_core.documents import Document
@@ -23,12 +23,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class RAGAgent(BaseAgent):
-    """Enhanced RAG Agent for content-based file search with improved performance."""
+    """Enhanced RAG Agent for content-based file search with Google Generative AI embeddings."""
     
-    def __init__(self, max_workers: int = 4, cache_ttl_hours: int = 24):
+    def __init__(self, max_workers: int = 4, cache_ttl_hours: int = 24, google_api_key: str = None):
         super().__init__(
             agent_name='RAGAgent',
-            description='Search for files based on their content using RAG',
+            description='Search for files based on their content using RAG with Google embeddings',
             content_types=['text', 'text/plain']
         )
         
@@ -36,15 +36,20 @@ class RAGAgent(BaseAgent):
         self.max_workers = max_workers
         self.cache_ttl = timedelta(hours=cache_ttl_hours)
         
-        # Initialize embeddings (keeping original approach - it works!)
-        self.embeddings = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2",
-            model_kwargs={'device': 'cpu'},
-            encode_kwargs={'normalize_embeddings': True}
+        # Initialize Google Generative AI embeddings
+        if not google_api_key:
+            # Try to get from environment variable
+            google_api_key = os.getenv('GOOGLE_API_KEY')
+            if not google_api_key:
+                raise ValueError("Google API key is required. Set GOOGLE_API_KEY environment variable or pass google_api_key parameter.")
+        
+        self.embeddings = GoogleGenerativeAIEmbeddings(
+            model="models/embedding-001",
+            google_api_key=google_api_key
         )
         
         self.vector_store = None
-        self.retriever = None  # Added missing initialization
+        self.retriever = None
         self.index_built = False
         self.last_index_time = None
         self.data_dir = None
@@ -56,14 +61,18 @@ class RAGAgent(BaseAgent):
         # Simple file hash cache (no SQLite complexity)
         self._file_hash_cache = {}
         
+        # Store the embeddings model type for cache validation
+        self.embeddings_model = "google-embedding-001"
+        
     @property
     def name(self):
         return self.agent_name
         
     def _get_cache_dir(self) -> str:
-        """Get the cache directory for storing the vector store."""
+        """Get the cache directory for storing the vector store with Google embeddings."""
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        cache_dir = os.path.join(base_dir, 'vector_store')
+        # Use a different cache directory for Google embeddings to avoid conflicts
+        cache_dir = os.path.join(base_dir, 'vector_store_google')
         os.makedirs(cache_dir, exist_ok=True)
         return cache_dir
     
@@ -111,10 +120,10 @@ class RAGAgent(BaseAgent):
         return hasher.hexdigest()
     
     async def _is_index_up_to_date(self, data_dir: str) -> bool:
-        """Check if the existing index is up to date."""
+        """Check if the existing index is up to date and uses the correct embeddings model."""
         cache_dir = self._get_cache_dir()
         
-        # Check if Chroma collection exists (updated for newer Chroma versions)
+        # Check if Chroma collection exists
         chroma_files = ['chroma.sqlite3', 'chroma-collection.parquet']
         if not any(os.path.exists(os.path.join(cache_dir, f)) for f in chroma_files):
             return False
@@ -125,6 +134,11 @@ class RAGAgent(BaseAgent):
             try:
                 with open(index_info_file, 'r') as f:
                     index_info = json.load(f)
+                
+                # Check if the embeddings model matches
+                if index_info.get('embeddings_model') != self.embeddings_model:
+                    log("Embeddings model changed, rebuilding index...")
+                    return False
                 
                 # Check TTL
                 index_time = datetime.fromisoformat(index_info['created_at'])
@@ -254,7 +268,7 @@ class RAGAgent(BaseAgent):
         return documents
     
     async def build_index(self, directory_path: str, force_rebuild: bool = False) -> bool:
-        """Build or load the vector index (enhanced but keeping working logic)."""
+        """Build or load the vector index with Google embeddings."""
         try:
             if not os.path.isdir(directory_path):
                 log(f"Directory not found: {directory_path}", level='error')
@@ -264,7 +278,7 @@ class RAGAgent(BaseAgent):
             
             # Check if we can use existing index
             if not force_rebuild and await self._is_index_up_to_date(directory_path):
-                log("Loading existing RAG index from cache...")
+                log("Loading existing RAG index from cache (Google embeddings)...")
                 try:
                     self.vector_store = Chroma(
                         persist_directory=self._get_cache_dir(),
@@ -278,7 +292,7 @@ class RAGAgent(BaseAgent):
                 except Exception as e:
                     log(f"Error loading index from cache, will rebuild: {str(e)}", level='warning')
             
-            log(f"Building new RAG index from {directory_path}...")
+            log(f"Building new RAG index with Google embeddings from {directory_path}...")
             
             # Collect files (keeping original working logic)
             file_paths = []
@@ -351,20 +365,23 @@ class RAGAgent(BaseAgent):
                 log("No text chunks generated from documents", level='error')
                 return False
             
-            # Create vector store (keeping original working approach)
+            # Create vector store with Google embeddings
+            log("Creating embeddings with Google Generative AI...")
             self.vector_store = Chroma.from_documents(
                 documents=splits,
                 embedding=self.embeddings,
                 persist_directory=self._get_cache_dir()
             )
             
-            # Save index metadata
+            # Save index metadata with embeddings model info
             index_info = {
                 'created_at': datetime.now().isoformat(),
                 'data_dir': directory_path,
                 'data_dir_mtime': os.path.getmtime(directory_path),
                 'num_documents': len(documents),
-                'num_chunks': len(splits)
+                'num_chunks': len(splits),
+                'embeddings_model': self.embeddings_model,  # Track embeddings model
+                'embeddings_provider': 'google_generative_ai'
             }
             
             index_info_file = os.path.join(self._get_cache_dir(), 'index_info.json')
@@ -384,7 +401,7 @@ class RAGAgent(BaseAgent):
             
             self.index_built = True
             self.last_index_time = datetime.now()
-            log(f"RAG index built successfully with {len(splits)} chunks")
+            log(f"RAG index built successfully with Google embeddings - {len(splits)} chunks")
             return True
             
         except Exception as e:
@@ -529,7 +546,7 @@ class RAGAgent(BaseAgent):
         return snippet.strip()
     
     async def search_by_content(self, query: str, top_k: int = 10) -> List[Dict]:
-        """Search for documents using enhanced multi-word and case-sensitive matching."""
+        """Search for documents using enhanced multi-word and case-sensitive matching with Google embeddings."""
         if not await self._check_index():
             log("Index not built or failed to build", level='error')
             return [{"error": "Index not built or failed to build."}]
@@ -702,7 +719,7 @@ class RAGAgent(BaseAgent):
                 if not success:
                     return {
                         'response_type': 'error',
-                        'content': 'Không thể xây dựng chỉ mục tìm kiếm.',
+                        'content': 'Không thể xây dựng chỉ mục tìm kiếm với Google embeddings.',
                         'is_task_complete': True,
                         'require_user_input': False
                     }
@@ -768,7 +785,8 @@ class RAGAgent(BaseAgent):
                     'num_results': len(search_results),
                     'num_files': len(unique_files),
                     'search_time': time.time(),
-                    'detailed_format': show_detailed_results
+                    'detailed_format': show_detailed_results,
+                    'embeddings_provider': 'google_generative_ai'
                 }
             }
             
@@ -852,7 +870,9 @@ class RAGAgent(BaseAgent):
                 'num_documents': index_info.get('num_documents', 0),
                 'num_chunks': index_info.get('num_chunks', 0),
                 'cache_ttl_hours': self.cache_ttl.total_seconds() / 3600,
-                'similarity_threshold': self.similarity_threshold
+                'similarity_threshold': self.similarity_threshold,
+                'embeddings_model': index_info.get('embeddings_model', self.embeddings_model),
+                'embeddings_provider': index_info.get('embeddings_provider', 'google_generative_ai')
             }
             
         except Exception as e:
@@ -860,7 +880,7 @@ class RAGAgent(BaseAgent):
             return {'status': 'error', 'error': str(e)}
     
     async def rebuild_index(self, directory_path: str = None) -> bool:
-        """Force rebuild the index."""
+        """Force rebuild the index with Google embeddings."""
         if directory_path:
             self.data_dir = directory_path
         elif not self.data_dir:
@@ -872,7 +892,14 @@ class RAGAgent(BaseAgent):
 
 # For testing with multiple file support and detailed formatting
 async def main():
-    agent = RAGAgent()
+    """Test function for the Google embeddings migration."""
+    # You need to set your Google API key
+    google_api_key = os.getenv('GOOGLE_API_KEY')  # Set this environment variable
+    if not google_api_key:
+        print("Please set GOOGLE_API_KEY environment variable")
+        return
+    
+    agent = RAGAgent(google_api_key=google_api_key)
     await agent.build_index("C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data")
     
     # Test with simple format (for compatibility)
@@ -883,8 +910,17 @@ async def main():
     
     # Test with detailed format (new feature)
     print("=== DETAILED FORMAT ===")
-    result = await agent.invoke("Tìm file có nội dung chứa KẾ HOẠCH", "test_session", show_detailed_results=True)
+    result = await agent.invoke("Tìm file có nội dung chứa Doanh thu", "test_session", show_detailed_results=True)
     print(result['content'])
+    
+    # Show index stats
+    print("\n=== INDEX STATS ===")
+    stats = agent.get_index_stats()
+    print(f"Status: {stats['status']}")
+    print(f"Embeddings provider: {stats.get('embeddings_provider', 'unknown')}")
+    print(f"Embeddings model: {stats.get('embeddings_model', 'unknown')}")
+    print(f"Documents: {stats.get('num_documents', 0)}")
+    print(f"Chunks: {stats.get('num_chunks', 0)}")
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -186,34 +186,9 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-# Import MultiAgentSystem
-try:
-    from agents.multi_agents import MultiAgentSystem
-except ImportError as e:
-    print(f"Cannot import MultiAgentSystem: {e}")
-    
-    class MockMultiAgentSystem:
-        def __init__(self):
-            self.initialized = False
-            
-        async def initialize(self):
-            await asyncio.sleep(1)
-            self.initialized = True
-            return True
-            
-        async def run(self, message, request_id):
-            await asyncio.sleep(0.5)
-            return {
-                "content": f"Mock response to: {message}",
-                "chain_of_thought": [
-                    "Received user message",
-                    "Processing with mock system",
-                    "Generating response"
-                ]
-            }
-    
-    MultiAgentSystem = MockMultiAgentSystem
-    print("Using mock MultiAgentSystem for demonstration")
+
+from agents.multi_agents import MultiAgentSystem
+
 
 # Event loop configuration
 if platform.system() == 'Windows':

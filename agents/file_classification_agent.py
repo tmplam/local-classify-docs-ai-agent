@@ -57,6 +57,33 @@ class FileClassificationAgent(BaseAgent):
 
     def invoke(self, query, sessionId) -> str:
         config = {'configurable': {'thread_id': sessionId}, 'recursion_limit': 50}
+        
+        # Đảm bảo query chứa thông tin file để phân loại
+        if 'path:' in query:
+            # Trích xuất đường dẫn file từ query
+            import re
+            file_path_match = re.search(r'path:\s*([^\)]+)', query)
+            file_path = file_path_match.group(1).strip() if file_path_match else ''
+            
+            # Đọc nội dung file để phân loại
+            try:
+                from utils.file_utils import read_file_content
+                file_content = read_file_content(file_path)
+                if file_content:
+                    # Tạo query mới với nội dung file
+                    classification_query = f"Phân loại file sau thành một cụm từ ngắn gọn phù hợp nhất:\n{file_content[:5000]}"
+                    response = self.graph.invoke({'messages': [('user', classification_query)]}, config)
+                    result = get_agent_response(self.graph, response['messages'][-1], config)
+                    
+                    # Đảm bảo kết quả là cụm từ ngắn gọn
+                    if isinstance(result, dict) and 'content' in result:
+                        return result
+                        log.info(result);
+                    return result
+            except Exception as e:
+                print(f"Error reading file for classification: {str(e)}")
+        
+        # Fallback: sử dụng query gốc nếu không thể xử lý
         response = self.graph.invoke({'messages': [('user', query)]}, config)
         return get_agent_response(self.graph, response['messages'][-1], config)
     
@@ -77,6 +104,9 @@ class FileClassificationAgent(BaseAgent):
                         'require_user_input': False,
                         'content': message.content,
                     }
+                    
+                    
+                    
             yield get_agent_response(self.graph, message, config)
     
     async def ainvoke(self, input_data, config=None):

@@ -33,9 +33,9 @@ Bạn là một trợ lý chuyên trích xuất văn bản. Hãy sử dụng cô
 Chỉ trả về phần văn bản đã trích xuất, không kèm theo bất kỳ giải thích nào."""
 
 file_classification_prompt = """
-Bạn là một tác nhân chuyên phân loại tệp. Nhiệm vụ của bạn là đọc nội dung tệp và phân loại nó theo lĩnh vực cụ thể và phù hợp nhất.
+Bạn là một tác nhân chuyên phân loại tệp. Nhiệm vụ của bạn là đọc nội dung tệp và phân loại nội dung thành một keyword phù hợp nhất .
 
-Một số ví dụ về lĩnh vực: "Lịch trực nhà", "Thông báo hành chính", "Giáo dục", "Y tế", "Tài chính", "Công nghệ", "Giải trí", "Luật pháp", v.v.
+Một số ví dụ : "Tài chính", "Tài liệu Administrator", "Giáo dục", "Y tế", "Tài chính", "Công nghệ", "Giải trí", "Luật pháp", v.v.
 
 Chỉ trả về một cụm từ duy nhất đại diện cho lĩnh vực đó.
 Tuyệt đối không kèm theo bất kỳ lời giải thích nào."""
