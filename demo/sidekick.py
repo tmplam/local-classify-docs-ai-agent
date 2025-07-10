@@ -54,30 +54,43 @@ class Sidekick:
 
     def worker(self, state: State) -> Dict[str, Any]:
         system_message = f"""You are a helpful assistant that can use tools to complete tasks.
-    You keep working on a task until either you have a question or clarification for the user, or the success criteria is met.
-    You have many tools to help you, including tools to browse the internet, navigating and retrieving web pages.
-    You have a tool to run python code, but note that you would need to include a print() statement if you wanted to receive output.
-    The current date and time is {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+You keep working on a task until either you have a question or clarification for the user, or the success criteria is met.
 
-    This is the success criteria:
-    {state['success_criteria']}
-    You should reply either with a question for the user about this assignment, or with your final response.
-    If you have a question for the user, you need to reply by clearly stating your question. An example might be:
+AVAILABLE TOOLS:
+- Web browsing tools (navigate websites, extract information)
+- Python code execution (include print() statements for output)
+- File management (read/write files)
+- Academic research tools:
+  * analyze_citations_by_year: Find papers citing a specific paper, sorted by year
+  * search_academic_paper: Get detailed information about a paper
+  * search_papers_by_author: Find papers by author name
+- Web search and Wikipedia tools
+- Push notifications
 
-    Question: please clarify whether you want a summary or a detailed answer
+For academic research tasks, prioritize using the specialized academic tools (analyze_citations_by_year, search_academic_paper) over general web search.
 
-    If you've finished, reply with the final answer, and don't ask a question; simply reply with the answer.
-    """
+The current date and time is {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+
+SUCCESS CRITERIA:
+{state['success_criteria']}
+
+RESPONSE FORMAT:
+- If you have a question for the user, start with "Question: [your question]"
+- If you've completed the task, provide the final answer without asking questions
+- For academic tasks, provide comprehensive, well-formatted results with proper citations
+"""
         
         if state.get("feedback_on_work"):
             system_message += f"""
-    Previously you thought you completed the assignment, but your reply was rejected because the success criteria was not met.
-    Here is the feedback on why this was rejected:
-    {state['feedback_on_work']}
-    With this feedback, please continue the assignment, ensuring that you meet the success criteria or have a question for the user."""
+
+PREVIOUS FEEDBACK:
+Your previous response was rejected. Here's the feedback:
+{state['feedback_on_work']}
+
+Please address this feedback and continue working on the task to meet the success criteria.
+"""
         
         # Add in the system message
-
         found_system_message = False
         messages = state["messages"]
         for message in messages:
@@ -95,7 +108,6 @@ class Sidekick:
         return {
             "messages": [response],
         }
-
 
     def worker_router(self, state: State) -> str:
         last_message = state["messages"][-1]
@@ -119,36 +131,45 @@ class Sidekick:
         last_response = state["messages"][-1].content
 
         system_message = f"""You are an evaluator that determines if a task has been completed successfully by an Assistant.
-    Assess the Assistant's last response based on the given criteria. Respond with your feedback, and with your decision on whether the success criteria has been met,
-    and whether more input is needed from the user."""
+Assess the Assistant's last response based on the given criteria. 
+
+For academic research tasks, ensure the response includes:
+- Accurate paper identification
+- Comprehensive citation analysis
+- Proper formatting and organization
+- Year-based sorting (if requested)
+- Relevant statistics and insights
+
+Respond with your feedback, decision on success criteria completion, and whether more user input is needed."""
         
-        user_message = f"""You are evaluating a conversation between the User and Assistant. You decide what action to take based on the last response from the Assistant.
+        user_message = f"""You are evaluating a conversation between the User and Assistant.
 
-    The entire conversation with the assistant, with the user's original request and all replies, is:
-    {self.format_conversation(state['messages'])}
+FULL CONVERSATION:
+{self.format_conversation(state['messages'])}
 
-    The success criteria for this assignment is:
-    {state['success_criteria']}
+SUCCESS CRITERIA:
+{state['success_criteria']}
 
-    And the final response from the Assistant that you are evaluating is:
-    {last_response}
+ASSISTANT'S FINAL RESPONSE:
+{last_response}
 
-    Respond with your feedback, and decide if the success criteria is met by this response.
-    Also, decide if more user input is required, either because the assistant has a question, needs clarification, or seems to be stuck and unable to answer without help.
+EVALUATION REQUIREMENTS:
+1. Does the response meet the success criteria?
+2. Is more user input required (questions, clarifications, or if assistant is stuck)?
+3. For academic tasks: Are results comprehensive, accurate, and well-formatted?
 
-    The Assistant has access to a tool to write files. If the Assistant says they have written a file, then you can assume they have done so.
-    Overall you should give the Assistant the benefit of the doubt if they say they've done something. But you should reject if you feel that more work should go into this.
-
-    """
+Give the Assistant benefit of the doubt for completed actions, but reject if significant work is missing.
+"""
+        
         if state["feedback_on_work"]:
-            user_message += f"Also, note that in a prior attempt from the Assistant, you provided this feedback: {state['feedback_on_work']}\n"
-            user_message += "If you're seeing the Assistant repeating the same mistakes, then consider responding that user input is required."
+            user_message += f"\nPREVIOUS FEEDBACK: {state['feedback_on_work']}\n"
+            user_message += "If the Assistant is repeating mistakes, consider requiring user input."
         
         evaluator_messages = [SystemMessage(content=system_message), HumanMessage(content=user_message)]
 
         eval_result = self.evaluator_llm_with_output.invoke(evaluator_messages)
         new_state = {
-            "messages": [{"role": "assistant", "content": f"Evaluator Feedback on this answer: {eval_result.feedback}"}],
+            "messages": [{"role": "assistant", "content": f"Evaluator Feedback: {eval_result.feedback}"}],
             "feedback_on_work": eval_result.feedback,
             "success_criteria_met": eval_result.success_criteria_met,
             "user_input_needed": eval_result.user_input_needed
@@ -160,7 +181,6 @@ class Sidekick:
             return "END"
         else:
             return "worker"
-
 
     async def build_graph(self):
         # Set up Graph Builder with State
