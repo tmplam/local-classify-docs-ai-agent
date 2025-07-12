@@ -83,6 +83,66 @@ class ReflectionAgent:
             # Import các module cần thiết
             import re
             import os
+            
+            # Kiểm tra nếu quá trình xử lý đã bị dừng (ví dụ: do quyền truy cập bị từ chối)
+            if state.get("stop_processing", False):
+                log(f"ReflectionAgent detected stop_processing flag with reason: {state.get('stop_reason', 'unknown')}", level='warning')
+                
+                # Xử lý trường hợp quyền truy cập bị từ chối
+                if state.get("stop_reason") == "access_denied":
+                    # Tạo prompt đặc biệt cho trường hợp quyền truy cập bị từ chối
+                    access_denied_prompt = f"""
+                    Bạn là một AI assistant chuyên về tổng hợp kết quả và trả lời người dùng một cách tự nhiên, thân thiện.
+                    
+                    YÊU CẦU BAN ĐẦU CỦA NGƯỜI DÙNG:
+                    "{state.get('original_query', '')}"  
+                    
+                    TÌNH HUỐNG:
+                    Đã tìm thấy các file phù hợp với yêu cầu, nhưng người dùng không có quyền truy cập vào các file này.
+                    
+                    YÊU CẦU:
+                    Hãy tạo một câu trả lời ngắn gọn, tự nhiên và hữu ích thông báo cho người dùng rằng:
+                    1. Đã tìm thấy file phù hợp với yêu cầu của họ
+                    2. Tuy nhiên, họ không có quyền truy cập vào các file này
+                    3. Họ cần có quyền truy cập phù hợp để xem nội dung
+                    
+                    LƯU Ý QUAN TRỌNG:
+                    - Sử dụng ngôn ngữ tự nhiên, gần gũi
+                    - Giới hạn trong 2-3 câu
+                    - Không cần giải thích thêm sau câu trả lời
+                    - KHÔNG đề cập đến việc phân loại file hoặc lưu metadata vì quá trình đã dừng lại
+                    
+                    CÂU TRẢ LỜI (chỉ trả về câu trả lời, không có phần giải thích):
+                    """
+                    
+                    # Gọi LLM để tạo phản hồi cho trường hợp quyền truy cập bị từ chối
+                    response = await self.model.ainvoke(access_denied_prompt)
+                    return "💭 " + response.content.strip()
+                else:
+                    # Xử lý các trường hợp dừng khác
+                    error_prompt = f"""
+                    Bạn là một AI assistant chuyên về tổng hợp kết quả và trả lời người dùng một cách tự nhiên, thân thiện.
+                    
+                    YÊU CẦU BAN ĐẦU CỦA NGƯỜI DÙNG:
+                    "{state.get('original_query', '')}"  
+                    
+                    TÌNH HUỐNG:
+                    Đã xảy ra lỗi trong quá trình xử lý: {state.get('stop_reason', 'Lỗi không xác định')}
+                    
+                    YÊU CẦU:
+                    Hãy tạo một câu trả lời ngắn gọn, tự nhiên và hữu ích thông báo cho người dùng về lỗi đã xảy ra.
+                    
+                    LƯU Ý QUAN TRỌNG:
+                    - Sử dụng ngôn ngữ tự nhiên, gần gũi
+                    - Giới hạn trong 2-3 câu
+                    - Không cần giải thích thêm sau câu trả lời
+                    
+                    CÂU TRẢ LỜI (chỉ trả về câu trả lời, không có phần giải thích):
+                    """
+                    
+                    # Gọi LLM để tạo phản hồi cho trường hợp lỗi khác
+                    response = await self.model.ainvoke(error_prompt)
+                    return "💭 " + response.content.strip()
             # Lấy query ban đầu
             original_query = state.get("original_query", "")
             if not original_query:
@@ -2608,6 +2668,11 @@ LƯU Ý CUỐI CÙNG:
                     error_message = f"⚠️ Không thể trích xuất nội dung: Bạn không có quyền truy cập vào các file này"
                     state["messages"].append(AIMessage(content=error_message))
                     log(f"Access denied to all files", level='warning')
+                    
+                    # Đánh dấu dừng xử lý các agent tiếp theo
+                    state["stop_processing"] = True
+                    state["stop_reason"] = "access_denied"
+                    log(f"Setting stop_processing flag due to access denied", level='warning')
                     return state
                 
                 # Có quyền truy cập ít nhất một file, tiếp tục với trích xuất
@@ -3482,15 +3547,15 @@ LƯU Ý CUỐI CÙNG:
             while not state.get("completed", False) and state["current_agents"]:
                 agent_name = state["current_agents"].pop(0)
                 agent_execution_order.append(agent_name)
-                log(f"Running agent: {agent_name} (Thứ tự thực thi: {agent_execution_order})")
+                log(f"Running {agent_name} agent...")
                 state["chain_of_thought"].append(f"⚡{step_count}. Đang chạy agent: {agent_name}")
                 
-                # Add execution order to state for later analysis
+                # Track agent execution order
                 if "agent_execution_order" not in state:
                     state["agent_execution_order"] = []
                 state["agent_execution_order"].append(agent_name)
                 
-                # Lưu trạng thái trước khi chạy agent
+                # Count messages before running the agent
                 pre_run_messages_count = len(state["messages"])
                 
                 # Run the agent
@@ -3498,6 +3563,13 @@ LƯU Ý CUỐI CÙNG:
                     state = await self.run_filesystem_agent(state)
                 elif agent_name == "text_extraction":
                     state = await self.run_text_extraction_agent(state)
+                    
+                    # Kiểm tra cờ stop_processing sau khi chạy text_extraction
+                    if state.get("stop_processing", False):
+                        log(f"Stopping processing due to: {state.get('stop_reason', 'unknown reason')}", level='warning')
+                        state["chain_of_thought"].append(f"🛑 Dừng xử lý: {state.get('stop_reason', 'Lỗi không xác định')}")
+                        break
+                        
                 elif agent_name == "file_classification":
                     state = await self.run_file_classification_agent(state)
                 elif agent_name == "metadata":
@@ -3506,6 +3578,12 @@ LƯU Ý CUỐI CÙNG:
                     state = await self.run_rag_agent(state)
                 else:
                     log(f"Unknown agent: {agent_name}")
+                    
+                # Kiểm tra cờ stop_processing sau khi chạy bất kỳ agent nào
+                if state.get("stop_processing", False):
+                    log(f"Stopping processing due to: {state.get('stop_reason', 'unknown reason')}", level='warning')
+                    state["chain_of_thought"].append(f"🛑 Dừng xử lý: {state.get('stop_reason', 'Lỗi không xác định')}")
+                    break
                 
                 # Lấy kết quả mới nhất từ agent
                 if len(state["messages"]) > pre_run_messages_count:
