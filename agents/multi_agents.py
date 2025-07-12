@@ -25,6 +25,7 @@ from agents.text_extraction_agent import TextExtractionAgent
 from agents.file_classification_agent import FileClassificationAgent
 from agents.rag_agent import RAGAgent
 from agents.human_feedback_agent import HumanFeedbackAgent
+from agents.data_analysis_agent import DataAnalysisAgent
 
 # Global MemorySaver instance shared by all agents
 memory = MemorySaver()
@@ -58,6 +59,9 @@ class AgentState(TypedDict):
     chain_of_thought: List[str]  # Detailed execution steps
     agent_results: Dict[str, str]  # Results from each agent
     original_query: str  # Original user query for reflection
+    extracted_contents: Dict[str, str]  # file_path -> content
+    analysis_metrics: List[str]  # metrics to analyze
+    analysis_results: Dict[str, Any]  # results from data analysis
 
 class ReflectionAgent:
     """
@@ -83,6 +87,51 @@ class ReflectionAgent:
             # Import các module cần thiết
             import re
             import os
+        
+            # Check if this was a data analysis query FIRST
+            used_tools = state.get("used_tools", [])
+            analysis_results = state.get("analysis_results", {})
+            
+            if "data_analysis" in used_tools and analysis_results:
+                # Create specialized reflection for data analysis
+                original_query = state.get("original_query", "")
+                extracted_contents = state.get("extracted_contents", {})
+                
+                reflection_prompt = f"""
+                Bạn là một AI assistant chuyên về tổng hợp kết quả phân tích dữ liệu tài chính.
+                
+                YÊU CẦU BAN ĐẦU CỦA NGƯỜI DÙNG:
+                "{original_query}"
+                
+                KẾT QUẢ PHÂN TÍCH DỮ LIỆU:
+                {analysis_results.get('report', 'Không có báo cáo phân tích')}
+                
+                CÁC CÔNG CỤ ĐÃ SỬ DỤNG:
+                {', '.join(used_tools)}
+                
+                SỐ LƯỢNG FILE ĐƯỢC PHÂN TÍCH:
+                {len(extracted_contents)} files
+                
+                YÊU CẦU:
+                Hãy tạo một câu trả lời ngắn gọn, tự nhiên và hữu ích tóm tắt kết quả so sánh dữ liệu tài chính.
+                
+                HƯỚNG DẪN TRẢ LỜI:
+                1. Xác nhận đã so sánh dữ liệu từ các file thành công
+                2. Tóm tắt các xu hướng chính (tăng/giảm)
+                3. Đưa ra nhận xét về hiệu suất kinh doanh
+                4. Sử dụng ngôn ngữ dễ hiểu, tránh thuật ngữ phức tạp
+                
+                LƯU Ý QUAN TRỌNG:
+                - Tập trung vào những thông tin quan trọng nhất
+                - Sử dụng ngôn ngữ tự nhiên, gần gũi
+                - Giới hạn trong 3-4 câu
+                - Đảm bảo câu trả lời có giá trị và actionable
+                
+                CÂU TRẢ LỜI (chỉ trả về câu trả lời, không có phần giải thích):
+                """
+                
+                response = await self.model.ainvoke(reflection_prompt)
+                return "💰 " + response.content.strip()
             
             # Kiểm tra nếu quá trình xử lý đã bị dừng (ví dụ: do quyền truy cập bị từ chối)
             if state.get("stop_processing", False):
@@ -796,7 +845,8 @@ class MultiAgentSystem:
         self.all_tools = []
         self.reflection_agent = ReflectionAgent()  # Thêm reflection agent
         self.human_feedback_agent = None  # Khởi tạo human feedback agent
-        
+        self.data_analysis_agent = DataAnalysisAgent()  # Thêm data analysis agent
+    
     async def initialize(self):
         """
         Asynchronously initialize all specialized agents and create the workflow graph.
@@ -831,7 +881,7 @@ class MultiAgentSystem:
             self.agents["text_extraction"] = TextExtractionAgent()
             self.agents["file_classification"] = FileClassificationAgent()
             self.agents["rag"] = RAGAgent()
-            
+            self.agents["data_analysis"] = DataAnalysisAgent()
             # Build RAG index for data directory
             data_dir = "C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data"
             await self.agents["rag"].build_index(data_dir)
@@ -869,6 +919,7 @@ class MultiAgentSystem:
         graph_builder.add_node("text_extraction_agent", self.run_text_extraction_agent)
         graph_builder.add_node("file_classification_agent", self.run_file_classification_agent)
         graph_builder.add_node("rag_agent", self.run_rag_agent)
+        graph_builder.add_node("data_analysis_agent", self.run_data_analysis_agent)
         graph_builder.add_node("evaluator", self.evaluator)
         graph_builder.add_node("reflection", self.run_reflection_agent)  # Thêm reflection node
         
@@ -896,6 +947,7 @@ class MultiAgentSystem:
                 "text_extraction": "text_extraction_agent",
                 "file_classification": "file_classification_agent",
                 "rag": "rag_agent",
+                "data_analysis": "data_analysis_agent",
                 "evaluator": "evaluator"
             }
         )
@@ -906,6 +958,7 @@ class MultiAgentSystem:
         graph_builder.add_edge("text_extraction_agent", "worker")
         graph_builder.add_edge("file_classification_agent", "worker")
         graph_builder.add_edge("rag_agent", "worker")
+        graph_builder.add_edge("data_analysis_agent", "worker")
         graph_builder.add_edge("human_feedback", "worker")
         
         # Evaluator routes to reflection instead of directly to END
@@ -1428,9 +1481,11 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
         state["current_agents"] = state["current_agents"][1:]
         
         # Kiểm tra nếu là RAG agent
-        if next_agent == "rag":
-            return "run_rag_agent"
         
+        if next_agent == "data_analysis":
+            return "data_analysis"
+        elif next_agent == "rag":
+            return "rag_agent"
         return next_agent
         
     async def _validate_agent_sequence(self, state: AgentState) -> AgentState:
@@ -1749,6 +1804,84 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
             print(f"Error running filesystem agent: {e}")
             # Add an error message to the state
             error_message = f"Xin lỗi, tôi gặp lỗi khi tìm kiếm tệp: {str(e)}"
+            state["messages"].append(AIMessage(content=error_message))
+            return state
+        
+    async def run_data_analysis_agent(self, state: AgentState) -> AgentState:
+        try:
+            log("Running DataAnalysisAgent...")
+            
+            # Track that we're using this agent
+            if "used_tools" not in state:
+                state["used_tools"] = []
+            state["used_tools"].append("data_analysis")
+            
+            # Get extracted contents from previous agents
+            extracted_contents = state.get("extracted_contents", {})
+            
+            if not extracted_contents:
+                # Try to get from text_extraction_results if not in extracted_contents
+                if "text_extraction_results" in state:
+                    extracted_contents = state["text_extraction_results"]
+                    state["extracted_contents"] = extracted_contents
+                    log(f"Found extracted contents from text_extraction_results: {len(extracted_contents)} files")
+            
+            if not extracted_contents:
+                error_msg = "❌ Không tìm thấy nội dung đã trích xuất để phân tích"
+                state["messages"].append(AIMessage(content=error_msg))
+                return state
+            
+            # Get analysis metrics from the original query
+            original_query = state.get("original_query", "")
+            
+            # Use DataAnalysisAgent to determine metrics to analyze
+            data_analysis_agent = self.agents["data_analysis"]
+            metrics_response = await data_analysis_agent.invoke(original_query, self.session_id)
+            
+            if isinstance(metrics_response, dict) and "metrics" in metrics_response:
+                metrics = metrics_response["metrics"]
+                log(f"Analysis metrics determined: {metrics}")
+            else:
+                # Default metrics for financial comparison
+                metrics = ["doanh thu", "lợi nhuận", "chi phí"]
+                log(f"Using default metrics: {metrics}")
+            
+            # Store metrics in state
+            state["analysis_metrics"] = metrics
+            
+            # Perform data analysis
+            log(f"Analyzing {len(extracted_contents)} files with metrics: {metrics}")
+            analysis_results = await data_analysis_agent.analyze_contents(extracted_contents, metrics)
+            
+            # Store analysis results in state
+            state["analysis_results"] = analysis_results
+            
+            # Format the response
+            if analysis_results and "report" in analysis_results:
+                report = analysis_results["report"]
+                response_content = f"📊 Kết quả phân tích so sánh dữ liệu:\n\n{report}"
+            else:
+                response_content = f"📊 Đã hoàn thành phân tích {len(extracted_contents)} files"
+            
+            # Add response to messages
+            state["messages"].append(AIMessage(content=response_content))
+            
+            # Store result in agent_results
+            if "agent_results" not in state:
+                state["agent_results"] = {}
+            state["agent_results"]["data_analysis"] = analysis_results
+            
+            # Add to chain of thought
+            if "chain_of_thought" not in state:
+                state["chain_of_thought"] = []
+            state["chain_of_thought"].append(f"📊 Đã phân tích và so sánh dữ liệu từ {len(extracted_contents)} files")
+            
+            log(f"DataAnalysisAgent completed: analyzed {len(extracted_contents)} files")
+            return state
+        
+        except Exception as e:
+            log(f"Error in data analysis agent: {str(e)}", level='error')
+            error_message = f"❌ Lỗi khi phân tích dữ liệu: {str(e)}"
             state["messages"].append(AIMessage(content=error_message))
             return state
 
@@ -2870,6 +3003,10 @@ LƯU Ý CUỐI CÙNG:
                 state["current_agents"].append(next_agent)
             else:
                 log(f"No additional agent suggested or already in use")
+            
+            if "text_extraction_results" in state:
+                state["extracted_contents"] = state["text_extraction_results"]
+                log(f"Stored extracted contents for data analysis: {len(state['extracted_contents'])} files")
 
             return state
 
@@ -3368,88 +3505,97 @@ LƯU Ý CUỐI CÙNG:
             return state
 
     async def plan_agents(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Lập kế hoạch sử dụng các agent dựa trên yêu cầu của người dùng.
-        
-        Args:
-            state: Trạng thái hiện tại của hệ thống
-            
-        Returns:
-            Trạng thái đã cập nhật với kế hoạch sử dụng agent
-        """
-        # Lấy yêu cầu của người dùng từ tin nhắn cuối cùng
+        """Enhanced agent planning that includes data analysis for comparison queries."""
         last_message = state["messages"][-1]
         query = last_message.content
         
         try:
-            # Xác định mục đích tìm kiếm (filesystem hay rag) để cung cấp gợi ý cho LLM
-            search_intent = await self._determine_search_intent(query)
-            intent_hint = "" if search_intent == "filesystem" else "\nGợi ý: Yêu cầu này có thể liên quan đến tìm kiếm theo nội dung, nên có thể cần sử dụng RAG agent."
-            
-            # Sử dụng LLM để lập kế hoạch cho mọi loại yêu cầu
+            # Enhanced planning prompt that includes data analysis
             planning_prompt = f"""
             Bạn là một hệ thống điều phối các agent AI chuyên biệt. Dựa trên yêu cầu của người dùng, hãy lập kế hoạch sử dụng các agent phù hợp.
             
             Yêu cầu của người dùng: "{query}"
-            
+        
             Các agent có sẵn:
             1. filesystem - Tìm kiếm, liệt kê và quản lý tệp và thư mục theo tên file
-            2. rag - Tìm kiếm tài liệu theo nội dung hoặc ngữ nghĩa (tìm kiếm theo từ khóa, chủ đề, hoặc nội dung liên quan)
-            3. metadata - Tạo và quản lý metadata cho tài liệu (lưu thông tin về file như tên, loại, nhãn, mô tả vào MCP server)
+            2. rag - Tìm kiếm tài liệu theo nội dung hoặc ngữ nghĩa
+            3. metadata - Tạo và quản lý metadata cho tài liệu
             4. text_extraction - Trích xuất văn bản từ tệp PDF, Word hoặc PowerPoint
             5. file_classification - Phân loại nội dung tài liệu
+            6. data_analysis - Phân tích và so sánh dữ liệu từ nhiều nguồn (đặc biệt cho dữ liệu tài chính)
             
-            LƯU Ý QUAN TRỌNG (PHẢI TUÂN THỦ CHÍNH XÁC):
-            - Nếu yêu cầu chỉ liên quan đến tìm kiếm file thì chỉ sử dụng filesystem agent hoặc rag agent không sử dụng thêm các agent khác
-            - Nếu yêu cầu liên quan đến tìm kiếm theo tên file, sử dụng filesystem agent
-            - Nếu yêu cầu liên quan đến tìm kiếm theo nội dung, chủ đề, hoặc ngữ nghĩa, sử dụng rag agent
-            - Nếu yêu cầu liên quan đến việc lưu metadata, PHẢI tuân thủ thứ tự chính xác sau:
-              1. Đầu tiên: tìm file (filesystem hoặc rag)
-              2. Tiếp theo: trích xuất nội dung (text_extraction)
-              3. Sau đó: phân loại (file_classification)
-              4. Cuối cùng: lưu metadata (metadata)
-            - KHÔNG BAO GIỜ đặt metadata agent trước text_extraction hoặc file_classification
-            - Nếu yêu cầu có nhiều bước, hãy liệt kê tất cả các agent cần thiết theo đúng thứ tự logic
-            {intent_hint}
-            
-            Hãy lập kế hoạch sử dụng các agent. Đầu tiên, trả lời với danh sách các agent cần sử dụng theo thứ tự, chỉ liệt kê tên các agent (filesystem, rag, metadata, text_extraction, file_classification), cách nhau bằng dấu phẩy.
-            
+            QUAN TRỌNG - LUẬT SỬ DỤNG DATA_ANALYSIS:
+            - Nếu yêu cầu có chứa từ khóa "so sánh", "phân tích", "compare", "analysis", "xu hướng", "tăng trưởng" thì PHẢI sử dụng data_analysis
+            - Thứ tự bắt buộc cho phân tích dữ liệu: rag -> text_extraction -> data_analysis
+            - KHÔNG sử dụng file_classification hoặc metadata trong workflow phân tích dữ liệu trừ khi được yêu cầu cụ thể
+        
+            LƯU Ý QUAN TRỌNG:
+            - Nếu yêu cầu chỉ liên quan đến tìm kiếm file thì chỉ sử dụng rag hoặc filesystem
+            - Nếu yêu cầu liên quan đến so sánh dữ liệu tài chính, sử dụng: rag, text_extraction, data_analysis
+            - Nếu yêu cầu liên quan đến việc lưu metadata, thứ tự: rag/filesystem -> text_extraction -> file_classification -> metadata
+        
+            Hãy lập kế hoạch sử dụng các agent. Đầu tiên, trả lời với danh sách các agent cần sử dụng theo thứ tự, chỉ liệt kê tên các agent, cách nhau bằng dấu phẩy.
+        
             Sau đó, viết một đoạn văn ngắn giải thích kế hoạch của bạn bằng tiếng Việt.
-            """
-            
-
-            # Sử dụng LLM để lập kế hoạch
+        """
+        
+        # Use LLM to plan
             from config.llm import gemini
             response = await gemini.ainvoke(planning_prompt)
             plan_response = response.content.strip()
             
-            # Tách phần danh sách agent và phần giải thích
+            # Parse agent list and explanation
             parts = plan_response.split('\n', 1)
             agent_list = parts[0].strip().lower()
             plan_message = parts[1].strip() if len(parts) > 1 else f"Tôi sẽ giúp bạn với yêu cầu: '{query}'."
             
-            # Xử lý danh sách agent
+            # Process agent list
             needed_agents = []
-            valid_agents = ["filesystem", "rag", "metadata", "text_extraction", "file_classification"]
+            valid_agents = ["filesystem", "rag", "metadata", "text_extraction", "file_classification", "data_analysis"]
             
             for agent in valid_agents:
                 if agent in agent_list:
                     needed_agents.append(agent)
             
-            if not needed_agents:
-                # Mặc định sử dụng filesystem nếu không có agent nào được chọn
-                needed_agents.append("filesystem")
-                plan_message += "\nTôi sẽ bắt đầu với Filesystem Agent để tìm kiếm thông tin."
+            # Special handling for comparison queries
+            comparison_keywords = ["so sánh", "compare", "phân tích", "analysis", "xu hướng", "tăng trưởng"]
+            if any(keyword in query.lower() for keyword in comparison_keywords):
+                # Force the correct order for data analysis
+                if "data_analysis" in needed_agents:
+                    # Ensure correct order: rag -> text_extraction -> data_analysis
+                    ordered_agents = []
+                    if "rag" in needed_agents or not any(agent in needed_agents for agent in ["filesystem", "rag"]):
+                        ordered_agents.append("rag")
+                    elif "filesystem" in needed_agents:
+                        ordered_agents.append("filesystem")
+                    
+                    if "text_extraction" not in needed_agents:
+                        ordered_agents.append("text_extraction")
+                    else:
+                        ordered_agents.append("text_extraction")
+                    
+                    ordered_agents.append("data_analysis")
+                    needed_agents = ordered_agents
+                    
+                    plan_message = f"Tôi sẽ thực hiện phân tích so sánh dữ liệu theo thứ tự: {', '.join(needed_agents)}."
             
-            log(f"Kế hoạch agent dựa trên LLM: {needed_agents}")
+            if not needed_agents:
+                needed_agents.append("rag")
+                plan_message += "\nTôi sẽ bắt đầu với RAG Agent để tìm kiếm thông tin."
+            
+            log(f"Enhanced agent plan: {needed_agents}")
             
         except Exception as e:
-            log(f"Lỗi khi lập kế hoạch sử dụng agent: {e}", level='error')
-            # Sử dụng mặc định nếu có lỗi
-            needed_agents = ["filesystem"]
-            plan_message = f"Tôi sẽ giúp bạn với yêu cầu: '{query}'. Tôi sẽ bắt đầu với Filesystem Agent để tìm kiếm thông tin."
-        
-        # Update state with the plan
+            log(f"Error in enhanced agent planning: {e}", level='error')
+            # Default for comparison queries
+            if any(keyword in query.lower() for keyword in ["so sánh", "compare", "phân tích"]):
+                needed_agents = ["rag", "text_extraction", "data_analysis"]
+                plan_message = f"Tôi sẽ thực hiện phân tích so sánh dữ liệu: tìm kiếm file, trích xuất nội dung, và phân tích dữ liệu."
+            else:
+                needed_agents = ["rag"]
+                plan_message = f"Tôi sẽ giúp bạn với yêu cầu: '{query}'. Bắt đầu với RAG Agent."
+    
+    # Update state with the plan
         state["current_agents"] = needed_agents
         state["messages"].append(AIMessage(content=plan_message))
         
@@ -3590,6 +3736,8 @@ LƯU Ý CUỐI CÙNG:
                     state = await self.run_metadata_agent(state)
                 elif agent_name == "rag":
                     state = await self.run_rag_agent(state)
+                elif agent_name == "data_analysis":
+                    state = await self.run_data_analysis_agent(state)
                 else:
                     log(f"Unknown agent: {agent_name}")
                     
