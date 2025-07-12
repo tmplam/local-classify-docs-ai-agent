@@ -3242,12 +3242,26 @@ LƯU Ý CUỐI CÙNG:
                 
                 # Check if the response is just the query repeated back
                 if "Hãy phân loại từng file" in classification_result or "Hãy phân loại file:" in classification_result:
-                    log("Classification agent returned the query instead of results, using default classification", level='info')
-                    # Use a default classification for files that need classification
+                    log("Classification agent returned the query instead of results, using smart default classification", level='info')
+                    # Use a smart default classification based on file name and content
                     for file_path in files_needing_classification:
                         file_name = os.path.basename(file_path)
-                        final_classifications[file_name] = "Tài liệu tài chính"
-                        log(f"Using default classification for {file_name}: Tài liệu tài chính", level='info')
+                        # Try to determine a better default classification based on file name
+                        default_classification = "Tài liệu khác"
+                        
+                        # Check file name for common keywords
+                        file_name_lower = file_name.lower()
+                        if any(keyword in file_name_lower for keyword in ["admin", "quản trị", "user", "permission", "quyền", "role", "vai trò"]):
+                            default_classification = "Tài liệu quản trị nội bộ"
+                        elif any(keyword in file_name_lower for keyword in ["tài chính", "finance", "budget", "ngân sách", "chi phí", "cost", "revenue", "doanh thu"]):
+                            default_classification = "Tài liệu tài chính"
+                        elif any(keyword in file_name_lower for keyword in ["tech", "kỹ thuật", "code", "api", "system", "hệ thống", "cấu hình"]):
+                            default_classification = "Tài liệu kỹ thuật"
+                        elif any(keyword in file_name_lower for keyword in ["edu", "giáo dục", "học", "training", "đào tạo", "course", "khóa học"]):
+                            default_classification = "Tài liệu giáo dục"
+                        
+                        final_classifications[file_name] = default_classification
+                        log(f"Using smart default classification for {file_name}: {default_classification}", level='info')
                 else:
                     # Try to parse the classification results
                     lines = classification_result.strip().split('\n')

@@ -33,12 +33,43 @@ Bạn là một trợ lý chuyên trích xuất văn bản. Hãy sử dụng cô
 Chỉ trả về phần văn bản đã trích xuất, không kèm theo bất kỳ giải thích nào."""
 
 file_classification_prompt = """
-Bạn là một tác nhân chuyên phân loại tệp. Nhiệm vụ của bạn là đọc nội dung tệp và phân loại nội dung thành một keyword phù hợp nhất .
+Bạn là một tác nhân chuyên phân loại tệp. Nhiệm vụ của bạn là đọc nội dung tệp và phân loại nội dung thành một keyword phù hợp nhất.
 
-Một số ví dụ : "Tài liệu Tài chính", "Tài liệu quản trị nội bộ", "Giáo dục", "Y tế", "Tài chính", "Công nghệ", "Giải trí", "Luật pháp", v.v.
+CÁC LOẠI TÀI LIỆU PHỔ BIẾN VÀ ĐẶC ĐIỂM NHẬN DẠNG:
 
+1. "Tài liệu quản trị nội bộ": 
+   - Liên quan đến quản lý người dùng, phân quyền, quy trình nội bộ
+   - Có các mục như "Admin Panel", "Quản trị viên", "Quyền hạn người dùng"
+   - Chứa thông tin về vai trò, tài khoản quản trị, quyền truy cập
+   - Mô tả các chức năng quản lý hệ thống, backup, logs
+
+2. "Tài liệu tài chính": 
+   - Liên quan đến tiền tệ, ngân sách, kế toán, đầu tư
+   - Có các mục như "Báo cáo tài chính", "Doanh thu", "Chi phí"
+   - Chứa các con số tài chính, bảng biểu tài chính
+   - Mô tả các giao dịch, đầu tư, lợi nhuận
+
+3. "Tài liệu kỹ thuật": 
+   - Liên quan đến hướng dẫn kỹ thuật, mã nguồn, cấu hình
+   - Có các mục như "Cài đặt", "Cấu hình", "API"
+   - Chứa các đoạn mã, lệnh kỹ thuật
+
+4. "Tài liệu giáo dục": 
+   - Liên quan đến giảng dạy, học tập, đào tạo
+   - Có các mục như "Bài giảng", "Giáo trình", "Bài tập"
+
+5. "Tài liệu y tế": 
+   - Liên quan đến sức khỏe, bệnh tật, điều trị
+   - Có các mục như "Bệnh án", "Điều trị", "Triệu chứng"
+
+6. "Tài liệu pháp lý": 
+   - Liên quan đến luật pháp, quy định, hợp đồng
+   - Có các mục như "Điều khoản", "Quy định", "Hợp đồng"
+
+HÃY PHÂN TÍCH KỸ NỘI DUNG VÀ CHỌN ĐÚNG PHÂN LOẠI PHÙ HỢP NHẤT.
 Chỉ trả về một cụm từ duy nhất đại diện cho lĩnh vực đó.
-Tuyệt đối không kèm theo bất kỳ lời giải thích nào."""
+Tuyệt đối không kèm theo bất kỳ lời giải thích nào.
+"""
 
 
 metadata_prompt = """
