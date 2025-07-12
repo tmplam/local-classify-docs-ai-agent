@@ -232,7 +232,7 @@ class MCPConnection:
 mcp_connection = MCPConnection()
 
 @tool
-def create_metadata(text: str, file_name: str, label: str):
+def create_metadata(text: str, file_name: str, label: str, classification_labels: dict = None):
     """
     Create a metadata dictionary for a given text document.
     
@@ -240,17 +240,43 @@ def create_metadata(text: str, file_name: str, label: str):
         text: The document text content
         file_name: Name of the file
         label: Classification label for the document
+        classification_labels: Optional dictionary mapping file names to classification labels
     
     Returns:
         dict: Metadata dictionary with document information
     """
+    # Ưu tiên sử dụng nhãn từ classification_labels nếu có
+    if classification_labels and isinstance(classification_labels, dict):
+        print(f"\n🔎 CREATE_METADATA: Checking classification_labels for {file_name}")
+        print(f"   - Classification labels: {classification_labels}")
+        
+        # Thử tìm theo tên file chính xác
+        if file_name in classification_labels and classification_labels[file_name]:
+            label = classification_labels[file_name]
+            print(f"   - ✅ Using exact match from classification_labels: '{label}'")
+        else:
+            # Thử tìm theo tên file không phân biệt hoa thường
+            file_name_lower = file_name.lower()
+            for key, value in classification_labels.items():
+                if isinstance(key, str) and key.lower() == file_name_lower and value:
+                    label = value
+                    print(f"   - ✅ Using case-insensitive match from classification_labels: '{label}'")
+                    break
+    
     # Clean up the label if it contains a file path
-    if ':' in label:
+    if isinstance(label, str) and ':' in label:
         label = label.split(':')[-1].strip()
     
     # Ensure we have a valid label
-    if not label or label.lower() in ["không xác định", "chưa phân loại", "không có phân loại"]:
-        label = "Chưa phân loại"
+    if not label or not isinstance(label, str) or label.lower() in ["không xác định", "chưa phân loại", "không có phân loại"]:
+        # Xác định nhãn mặc định dựa trên tên file
+        if "finance" in file_name.lower():
+            label = "Tài chính"
+        elif "report" in file_name.lower():
+            label = "Báo cáo"
+        else:
+            label = "Tài liệu"
+        print(f"   - ⚠️ Invalid label. Using default category based on filename: '{label}'")
     
     # Clean file name
     file_name = str(file_name).strip()
@@ -693,22 +719,48 @@ class MetadataAgent(BaseAgent):
             print(f"❌ Error extracting content from {file_path}: {e}")
             return f"Error extracting content: {str(e)}"
 
-    def invoke(self, query, sessionId, metadata=None) -> str:
-        """Invoke the agent synchronously with better error handling.
+    def invoke(self, query, metadata=None, sessionId=None):
+        """
+        Invoke the metadata agent to extract and save metadata.
         
         Args:
-            query: The user query or instruction
-            sessionId: Session ID for conversation tracking
-            metadata: Optional metadata dictionary containing file info, content, etc.
+            query: The query to process
+            metadata: Optional metadata dictionary
+            sessionId: Session ID for the conversation
             
         Returns:
-            str: The agent's response
+            str: Response from the agent
         """
-        # Initialize MCP if not done
-        if not self.mcp_initialized:
-            success = self.initialize_mcp_sync()
-            if not success:
-                return "❌ Failed to initialize MCP connection. Please check the server."
+        # Initialize MCP connection if needed
+        global mcp_connection
+        if not mcp_connection:
+            try:
+                from utils.mcp_connection import MCPConnection
+                mcp_connection = MCPConnection()
+                print("✅ MCP connection initialized")
+            except Exception as e:
+                print(f"❌ Failed to initialize MCP connection: {e}")
+        
+        # In ra toàn bộ metadata để debug
+        print(f"\n🔍 FULL METADATA RECEIVED IN METADATA AGENT:")
+        if metadata:
+            print(f"Metadata type: {type(metadata)}")
+            print(f"Metadata keys: {list(metadata.keys()) if isinstance(metadata, dict) else 'Not a dictionary'}")
+            
+            # In ra chi tiết về classification_labels nếu có
+            if isinstance(metadata, dict) and 'classification_labels' in metadata:
+                print(f"classification_labels type: {type(metadata['classification_labels'])}")
+                print(f"classification_labels content: {metadata['classification_labels']}")
+            else:
+                print(f"⚠️ No classification_labels key in metadata")
+                
+            # In ra các thông tin quan trọng khác
+            if isinstance(metadata, dict):
+                for key in ['file_names', 'file_paths', 'is_multi_file', 'file_count']:
+                    if key in metadata:
+                        print(f"{key}: {metadata[key]}")
+        else:
+            print("⚠️ No metadata provided")
         
         # Debug log for metadata
         if metadata:
@@ -739,19 +791,26 @@ class MetadataAgent(BaseAgent):
                     if not file_names and file_paths:
                         file_names = [os.path.basename(path) for path in file_paths]
                         
-                    label = metadata.get('label')
-                    if label is None or label == 'None':
-                        # Try to get classification labels from metadata dictionary
-                        classification_labels = metadata.get('classification_labels', {})
-                        if classification_labels and len(file_names) > 0 and file_names[0] in classification_labels:
-                            label = classification_labels[file_names[0]]
-                            print(f"✅ Using classification label from metadata dictionary: '{label}'")
-                        else:
-                            label = "Giáo dục"  # Default label based on common classifications
-                            print(f"⚠️ No label provided for multi-file case, using default: '{label}'")
+                    # Lấy classification_labels từ metadata để sử dụng cho từng file
+                    classification_labels = metadata.get('classification_labels', {})
+                    print(f"DEBUG: Available classification_labels for multi-file: {classification_labels}")
+                    
+                    # Lấy nhãn chung nếu có
+                    general_label = metadata.get('label')
+                    if general_label is None or general_label == 'None':
+                        general_label = ""
+                        print(f"⚠️ No general label provided for multi-file case, using empty label")
+                    else:
+                        print(f"✅ Using general label from metadata: '{general_label}'")
+                        
+                    # Ghi log số lượng nhãn phân loại có sẵn
+                    if classification_labels:
+                        print(f"✅ Found {len(classification_labels)} classification labels for {len(file_names)} files")
+                    else:
+                        print(f"⚠️ No classification labels found in metadata dictionary")
                     content = metadata.get('content', '')
                         
-                    print(f"✅ Creating metadata for {len(file_paths)} files with label: {label}")
+                    print(f"✅ Creating metadata for {len(file_paths)} files with general label: {general_label}")
                     print(f"Content length: {len(content)} characters")
                         
                     # Create metadata dictionary for the group
@@ -759,7 +818,7 @@ class MetadataAgent(BaseAgent):
                     safe_content = content if content else f"Multiple files: {', '.join(file_names[:3])}{'...' if len(file_names) > 3 else ''} (no content extracted)"
                     metadata_dict = {
                         "file_name": metadata.get('file_name', 'multiple_files'),
-                        "label": label,
+                        "label": general_label,  # Sử dụng general_label thay vì label
                         "content": safe_content[:500] if len(safe_content) > 500 else safe_content,
                         "total_characters": float(len(safe_content)),
                         "creation_date": _format_file_timestamp(
@@ -767,7 +826,8 @@ class MetadataAgent(BaseAgent):
                             include_time=True
                         ),
                         "file_count": len(file_paths),
-                        "file_names": file_names
+                        "file_names": file_names,
+                        "classification_labels": classification_labels  # Thêm classification_labels vào metadata
                     }
                     
                     # Save metadata for each file
@@ -809,12 +869,108 @@ class MetadataAgent(BaseAgent):
                             # Ensure we have at least some content
                             safe_content = file_content if file_content else f"File: {file_name} (no content extracted)"
                             print(f"📋 Saving metadata for file {i+1}/{len(file_paths)}: {file_name}")
-                            print(f"   - Label: {label}")
+                            print(f"   - General Label: {general_label}")
                             print(f"   - Content length: {len(safe_content)} characters")
                             
-                            # Check if we have a specific label for this file in classification_labels
-                            file_label = label
+                            # Parse the enhanced query to extract file-specific labels
+                            # This is a more reliable approach than relying on metadata dictionaries
+                            file_specific_label = None
+                            
+                            # Try to extract from the query which contains the file list with labels
+                            if query and "DANH SÁCH FILES:" in query:
+                                import re
+                                # Look for different possible patterns in the enhanced query
+                                # Pattern 1: "+ N. filename - Phân loại: label"
+                                pattern1 = re.compile(fr"\+\s*\d+\.\s*{re.escape(file_name)}\s*-\s*Phân loại:\s*([^\n]+)")
+                                # Pattern 2: "+ N. filename - label" (without "Phân loại:")
+                                pattern2 = re.compile(fr"\+\s*\d+\.\s*{re.escape(file_name)}\s*-\s*([^\n]+)")
+                                
+                                # Try pattern 1 first (with "Phân loại:")
+                                match = pattern1.search(query)
+                                if match:
+                                    file_specific_label = match.group(1).strip()
+                                    print(f"   - Found label with pattern1 for {file_name}: {file_specific_label}")
+                                else:
+                                    # Try pattern 2 (without "Phân loại:")
+                                    match = pattern2.search(query)
+                                    if match:
+                                        file_specific_label = match.group(1).strip()
+                                        print(f"   - Found label with pattern2 for {file_name}: {file_specific_label}")
+                                
+                                # Add extra debug info
+                                if not match:
+                                    print(f"   - DEBUG: Could not find label pattern for {file_name} in query")
+                                    # Print the relevant section of the query for debugging
+                                    query_lines = query.split('\n')
+                                    files_section_start = False
+                                    for line in query_lines:
+                                        if "DANH SÁCH FILES:" in line:
+                                            files_section_start = True
+                                            print(f"   - DEBUG: Found files section: {line}")
+                                        elif files_section_start and file_name in line:
+                                            print(f"   - DEBUG: Found file in query: {line}")
+                                            break
+                            
+                            # If we found a specific label in the query, use it
+                            if file_specific_label:
+                                file_label = file_specific_label
+                                print(f"   - Using label from query for {file_name}: {file_label}")
+                            else:
+                                # Fall back to checking in metadata dictionaries
+                                file_label = general_label  # Default to the general label
+                            
+                            # Ưu tiên sử dụng classification_labels trước file_labels
                             classification_labels = metadata.get('classification_labels', {})
+                            print(f"DEBUG: Available classification_labels: {classification_labels}")
+                            print(f"DEBUG: Current file_name: {file_name}")
+                            
+                            # Try different ways to match the file name
+                            found_label = False
+                            
+                            # 1. Direct match in classification_labels by file_name
+                            if file_name in classification_labels:
+                                file_label = classification_labels[file_name]
+                                print(f"   - Using classification label for {file_name}: {file_label}")
+                                found_label = True
+                            # 2. Try with full file path
+                            elif file_path in classification_labels:
+                                file_label = classification_labels[file_path]
+                                print(f"   - Using classification label for full path {file_path}: {file_label}")
+                                found_label = True
+                            # 3. Try case-insensitive match in classification_labels
+                            else:
+                                file_name_lower = file_name.lower()
+                                for key, value in classification_labels.items():
+                                    if isinstance(key, str):
+                                        # Check if key is filename or path
+                                        if key.lower() == file_name_lower or (os.path.basename(key).lower() == file_name_lower):
+                                            file_label = value
+                                            print(f"   - Using case-insensitive classification label match for {file_name} -> {key}: {file_label}")
+                                            found_label = True
+                                            break
+                            
+                            # If still not found, fall back to checking in file_labels
+                            if not found_label:
+                                file_labels = metadata.get('file_labels', {})
+                                print(f"DEBUG: Available file_labels: {file_labels}")
+                                
+                                # Direct match
+                                if file_name in file_labels:
+                                    file_label = file_labels[file_name]
+                                    print(f"   - Using specific label for {file_name}: {file_label}")
+                                    found_label = True
+                                else:
+                                    # Try case-insensitive match
+                                    for key, value in file_labels.items():
+                                        if key.lower() == file_name_lower:
+                                            file_label = value
+                                            print(f"   - Using case-insensitive match for {file_name} -> {key}: {file_label}")
+                                            found_label = True
+                                            break
+                            
+                            if not found_label:
+                                print(f"DEBUG: No specific label found for {file_name} in either dictionary, using default: {file_label}")
+                            
                             metadata_id = str(uuid.uuid4())
                             # Calculate actual content length
                             actual_content_length = len(safe_content)
@@ -839,15 +995,116 @@ class MetadataAgent(BaseAgent):
                                 if other_files:
                                     additional_meta["related_files"] = other_files
                             
+                            # Kiểm tra lần cuối và làm sạch nhãn phân loại trước khi lưu
+                            print(f"   - 🔍 CHECKING LABEL: '{file_label}'")
+                            
+                            # Thử tìm lại trong classification_labels một lần nữa để đảm bảo chúng ta có nhãn chính xác nhất
+                            classification_labels = metadata.get('classification_labels', {})
+                            original_label = file_label
+                            
+                            # In ra chi tiết về classification_labels
+                            print(f"\n🔎 DETAILED CLASSIFICATION LABELS DEBUG:")
+                            print(f"   - Classification labels type: {type(classification_labels)}")
+                            print(f"   - Classification labels content: {classification_labels}")
+                            print(f"   - File name being processed: '{file_name}'")
+                            print(f"   - Is file_name in classification_labels? {file_name in classification_labels}")
+                            if file_name in classification_labels:
+                                print(f"   - Value for '{file_name}': '{classification_labels[file_name]}'")
+                                print(f"   - Value type: {type(classification_labels[file_name])}")
+                                print(f"   - Is value truthy? {bool(classification_labels[file_name])}")
+                            
+                            # Kiểm tra lại trong classification_labels
+                            if classification_labels:
+                                if file_name in classification_labels and classification_labels[file_name]:
+                                    file_label = classification_labels[file_name]
+                                    print(f"   - ✅ PRIORITY: Using exact classification label from metadata: '{file_label}'")
+                                else:
+                                    print(f"   - ⚠️ No exact match found or value is empty. Trying case-insensitive match.")
+                                    # Thử tìm theo tên file không phân biệt hoa thường
+                                    file_name_lower = file_name.lower()
+                                    for key, value in classification_labels.items():
+                                        print(f"   - Checking key: '{key}', value: '{value}', match? {isinstance(key, str) and key.lower() == file_name_lower and value}")
+                                        if isinstance(key, str) and key.lower() == file_name_lower and value:
+                                            file_label = value
+                                            print(f"   - ✅ PRIORITY: Using case-insensitive classification label: '{file_label}'")
+                                            break
+                            
+                            # Chỉ kiểm tra và sử dụng nhãn mặc định nếu không tìm thấy nhãn hợp lệ trong classification_labels
+                            # Kiểm tra nếu nhãn trống hoặc None
+                            if not file_label or file_label == "None" or file_label.strip() == "":
+                                # Xác định nhãn mặc định dựa trên tên file
+                                if "finance" in file_name.lower():
+                                    file_label = "Tài chính"
+                                elif "report" in file_name.lower():
+                                    file_label = "Báo cáo"
+                                else:
+                                    file_label = "Tài liệu"
+                                print(f"   - ⚠️ Empty label detected. Using default category based on filename: '{file_label}'")
+                            # Kiểm tra nếu nhãn có dạng đường dẫn file
+                            elif file_label.startswith('C:\\') or file_label.startswith('/') or 'ĐƯỜNG DẪN' in file_label or file_label.startswith('path:'):
+                                print(f"   - ⚠️ FINAL CHECK: Label looks like a file path: '{file_label}'. Using default category.")
+                                # Xác định nhãn mặc định dựa trên tên file
+                                if "finance" in file_name.lower():
+                                    file_label = "Tài chính"
+                                elif "report" in file_name.lower():
+                                    file_label = "Báo cáo"
+                                else:
+                                    file_label = "Tài liệu"
+                                print(f"   - 🏷️ Using default category: '{file_label}'")
+                            # Kiểm tra nếu nhãn quá dài (có thể là nội dung file)
+                            elif len(file_label) > 50:
+                                print(f"   - ⚠️ Label too long ({len(file_label)} chars), likely content not label. Using default category.")
+                                # Xác định nhãn mặc định dựa trên tên file
+                                if "finance" in file_name.lower():
+                                    file_label = "Tài chính"
+                                elif "report" in file_name.lower():
+                                    file_label = "Báo cáo"
+                                else:
+                                    file_label = "Tài liệu"
+                                print(f"   - 🏷️ Using default category: '{file_label}'")
+                                
+                            # Ghi log nếu nhãn đã thay đổi
+                            if original_label != file_label:
+                                print(f"   - 🔄 Label changed from '{original_label}' to '{file_label}'")
+                            else:
+                                print(f"   - ✅ Label unchanged: '{file_label}'")
+                            
+                                
+                            # In ra nhãn cuối cùng sẽ được lưu
+                            print(f"   - 📌 FINAL LABEL for {file_name}: '{file_label}'")
+                            
+
+                            # Tạo metadata trực tiếp thay vì gọi hàm create_metadata
+                            print(f"\n🔎 CREATING METADATA WITH CLASSIFICATION_LABELS")
+                            
+                            # Kiểm tra lại classification_labels một lần nữa
+                            if classification_labels and isinstance(classification_labels, dict):
+                                print(f"   - Classification labels available: {len(classification_labels)} entries")
+                                if file_name in classification_labels:
+                                    print(f"   - Found exact match for {file_name} in classification_labels: {classification_labels[file_name]}")
+                            else:
+                                print(f"   - No valid classification_labels dictionary available")
+                            
+                            # Tạo metadata trực tiếp
                             metadata_obj = {
                                 "id": str(uuid.uuid4()),
                                 "filename": file_name,
-                                "label": label,
-                                "content": safe_content,
+                                "file_name": file_name,  # Đảm bảo có cả hai trường
+                                "label": file_label,
+                                "content": safe_content[:500] if safe_content and len(safe_content) > 500 else (safe_content or ""),
+                                "total_characters": float(len(safe_content)) if safe_content else 0.0,
                                 "created_at": datetime.now().isoformat(),
                                 "updated_at": datetime.now().isoformat(),
+                                "creation_date": _format_file_timestamp(
+                                    timestamp=datetime.now().timestamp(), 
+                                    include_time=True
+                                ),
                                 "additional_metadata": additional_meta
                             }
+                            
+                            # In ra metadata trước khi lưu
+                            print(f"   - 💾 Saving metadata with label: '{metadata_obj.get('label')}' (type: {type(metadata_obj.get('label'))})")
+                            print(f"   - 💾 Metadata details: {metadata_obj}")
                             
                             # Save metadata to MCP
                             result = mcp_connection.call_tool_sync("save_metadata_to_json", metadata_obj)
@@ -891,50 +1148,132 @@ class MetadataAgent(BaseAgent):
                     file_paths = metadata.get('file_paths', [])
                     file_names = metadata.get('file_names', [])
                     label = metadata.get('label')
-                    if label is None or label == 'None':
-                        # Try to get classification labels from metadata dictionary
-                        classification_labels = metadata.get('classification_labels', {})
-                        file_name = metadata.get('file_name', 'unknown_file')
-                        if classification_labels and file_name in classification_labels:
-                            label = classification_labels[file_name]
-                            print(f"✅ Using classification label from metadata dictionary: '{label}'")
+                    file_name = metadata.get('file_name', 'unknown_file')
+                    file_label = ""
+                    
+                    # Thử lấy nhãn từ nhiều nguồn khác nhau
+                    print(f"\n🔍 SINGLE FILE LABEL EXTRACTION for {file_name}:")
+                    
+                    # Ưu tiên lấy từ classification_labels trước tiên
+                    classification_labels = metadata.get('classification_labels', {})
+                    print(f"   - Available classification_labels: {classification_labels}")
+                    original_label = file_label
+                    
+                    if classification_labels:
+                        # Thử tìm theo tên file chính xác
+                        if file_name in classification_labels and classification_labels[file_name]:
+                            file_label = classification_labels[file_name]
+                            print(f"   - ✅ PRIORITY: Using exact match in classification_labels: '{file_label}'")
                         else:
-                            label = "Giáo dục"  # Default label based on common classifications
-                            print(f"⚠️ No label provided for single file, using default: '{label}'")
+                            # Thử tìm theo tên file không phân biệt hoa thường
+                            file_name_lower = file_name.lower()
+                            for key, value in classification_labels.items():
+                                if isinstance(key, str) and key.lower() == file_name_lower and value:
+                                    file_label = value
+                                    print(f"   - ✅ PRIORITY: Using case-insensitive match in classification_labels: '{file_label}'")
+                                    break
+                    
+                    # Nếu không tìm thấy trong classification_labels, thử lấy từ label chung
+                    if (not file_label or file_label == "None" or file_label.strip() == "") and label and label != 'None':
+                        file_label = label
+                        print(f"   - Using general label as fallback: '{file_label}'")
+                        
+                    # Ghi log nếu nhãn đã thay đổi
+                    if original_label != file_label:
+                        print(f"   - 🔄 Label changed from '{original_label}' to '{file_label}'")
+                    else:
+                        print(f"   - ✅ Label unchanged: '{file_label}'")
+                    
+                    # 3. Kiểm tra và xử lý nhãn
+                    if not file_label or file_label == "None" or file_label.strip() == "":
+                        # Xác định nhãn mặc định dựa trên tên file
+                        if "finance" in file_name.lower():
+                            file_label = "Tài chính"
+                        elif "report" in file_name.lower():
+                            file_label = "Báo cáo"
+                        else:
+                            file_label = "Tài liệu"
+                        print(f"   - ⚠️ No valid label found. Using default category based on filename: '{file_label}'")
+                    # Kiểm tra nếu nhãn có dạng đường dẫn file
+                    elif file_label.startswith('C:\\') or file_label.startswith('/') or 'ĐƯỜNG DẪN' in file_label or file_label.startswith('path:'):
+                        print(f"   - ⚠️ Label looks like a file path: '{file_label}'. Using default category.")
+                        # Xác định nhãn mặc định dựa trên tên file
+                        if "finance" in file_name.lower():
+                            file_label = "Tài chính"
+                        elif "report" in file_name.lower():
+                            file_label = "Báo cáo"
+                        else:
+                            file_label = "Tài liệu"
+                        print(f"   - 🏷️ Using default category: '{file_label}'")
+                    
+                    print(f"   - 📌 FINAL LABEL for single file {file_name}: '{file_label}'")
+                    
                     content = metadata.get('content', '')
                     
                     file_name = metadata.get('file_name', 'unknown_file')
-                    print(f"✅ Directly creating metadata for {file_name} with label: {label}")
+                    print(f"✅ Directly creating metadata for {file_name} with label: {file_label}")
                     print(f"Content length: {len(content)} characters")
                     
                  
                     # Ensure we have at least some content
                     safe_content = content if content else f"File: {file_name} (no content extracted)"
-                    metadata_dict = {
-                        "file_name": file_name,
-                        "label": label,
-                        "content": safe_content[:500] if len(safe_content) > 500 else safe_content,
-                        "total_characters": float(len(safe_content)),
-                        "creation_date": _format_file_timestamp(
-                            timestamp=datetime.now().timestamp(), 
-                            include_time=True
-                        )
-                    }
+                    found_label = False
+                    # file_label đã được định nghĩa ở trên
+                    if metadata.get('classification_labels'):
+                        classification_labels = metadata.get('classification_labels', {})
+                        if file_name in classification_labels:
+                            file_label = classification_labels[file_name]
+                            found_label = True
+                    # In ra nhãn cuối cùng sẽ được lưu
+                    print(f"   - 📌 FINAL LABEL for single file {file_name}: '{file_label}'")
+                    
+                    # Sử dụng hàm create_metadata để tạo metadata với classification_labels
+                    print(f"\n🔎 USING CREATE_METADATA WITH CLASSIFICATION_LABELS FOR SINGLE FILE")
+                    metadata_result = create_metadata(
+                        text=safe_content,
+                        file_name=file_name,
+                        label=file_label,
+                        classification_labels=classification_labels
+                    )
+                    
+                    # Lấy metadata từ kết quả của create_metadata
+                    if isinstance(metadata_result, dict) and 'create_metadata_response' in metadata_result:
+                        metadata_obj = metadata_result['create_metadata_response']
+                        # Thêm các trường bổ sung
+                        metadata_obj["id"] = str(uuid.uuid4())
+                        metadata_obj["filename"] = file_name  # Đảm bảo filename được đặt đúng
+                        metadata_obj["file_path"] = file_paths[0] if file_paths else ""
+                        metadata_obj["classification_source"] = "classification_labels" if found_label else "query_extraction"
+                    else:
+                        # Fallback nếu create_metadata không trả về kết quả mong đợi
+                        metadata_obj = {
+                            "id": str(uuid.uuid4()),
+                            "filename": file_name,
+                            "label": file_label,
+                            "content": safe_content[:500] if len(safe_content) > 500 else safe_content,
+                            "total_characters": float(len(safe_content)),
+                            "creation_date": _format_file_timestamp(
+                                timestamp=datetime.now().timestamp(), 
+                                include_time=True
+                            ),
+                            "file_path": file_paths[0] if file_paths else "",
+                            "classification_source": "classification_labels" if found_label else "query_extraction"
+                        }
+                        print(f"   - ⚠️ Fallback to direct metadata creation due to unexpected create_metadata result")
+                    
+                    print(f"   - Final label for {file_name}: '{metadata_obj.get('label')}' (type: {type(metadata_obj.get('label'))})")
+                    print(f"   - Label source: {metadata_obj.get('classification_source', 'unknown')}")
                     
                     # Save metadata to MCP
                     if mcp_connection:
-                        # Ensure we have at least some content
-                        safe_content = content if content else f"File: {file_name} (no content extracted)"
+                        # In ra metadata trước khi lưu
                         print(f"📋 Saving metadata for single file: {file_name}")
-                        print(f"   - Label: {label}")
-                        print(f"   - Content length: {len(safe_content)} characters")
-                        result = mcp_connection.call_tool_sync("save_metadata_to_json", {
-                            "filename": file_name,
-                            "label": label,
-                            "content": safe_content,
-                            "additional_metadata": {k: v for k, v in metadata_dict.items() 
-                                                if k not in ['file_name', 'label', 'content']}
-                        })
+                        print(f"   - Label: {metadata_obj.get('label')}")
+                        print(f"   - Content length: {len(metadata_obj.get('content', ''))} characters")
+                        print(f"   - 💾 Metadata details: {metadata_obj}")
+                        
+                        # Save metadata to MCP
+                        result = mcp_connection.call_tool_sync("save_metadata_to_json", metadata_obj)
                         
                         # Extract metadata ID and handle errors
                         metadata_id = None

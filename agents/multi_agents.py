@@ -24,6 +24,7 @@ from agents.metadata_agent import MetadataAgent
 from agents.text_extraction_agent import TextExtractionAgent
 from agents.file_classification_agent import FileClassificationAgent
 from agents.rag_agent import RAGAgent
+from agents.human_feedback_agent import HumanFeedbackAgent
 
 # Global MemorySaver instance shared by all agents
 memory = MemorySaver()
@@ -38,6 +39,8 @@ mcp_client = MultiServerMCPClient({
             "-y",
             "@modelcontextprotocol/server-filesystem",
             "C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data",
+            # C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data
+
         ],
         "transport": "stdio",
     }
@@ -732,6 +735,7 @@ class MultiAgentSystem:
         self.session_id = None
         self.all_tools = []
         self.reflection_agent = ReflectionAgent()  # Thêm reflection agent
+        self.human_feedback_agent = None  # Khởi tạo human feedback agent
         
     async def initialize(self):
         """
@@ -744,7 +748,9 @@ class MultiAgentSystem:
             # Initialize specialized agents
             print("Initializing specialized agents...")
             
-           
+            # Khởi tạo human feedback agent
+            self.human_feedback_agent = HumanFeedbackAgent(session_id=self.session_id)
+            
             mcp_client = MultiServerMCPClient({
                 "document_search": {
                     "command": "cmd",
@@ -753,7 +759,7 @@ class MultiAgentSystem:
                         "npx",
                         "-y",
                         "@modelcontextprotocol/server-filesystem",
-                        "C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data",
+                        "C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data"  # Adjusted path,
                     ],
                     "transport": "stdio"
                 }
@@ -797,6 +803,7 @@ class MultiAgentSystem:
         # Add nodes for each component
         graph_builder.add_node("worker", self.worker)
         graph_builder.add_node("router", self.route_query)
+        graph_builder.add_node("human_feedback", self.process_human_feedback)
         graph_builder.add_node("filesystem_agent", self.run_filesystem_agent)
         graph_builder.add_node("metadata_agent", self.run_metadata_agent)
         graph_builder.add_node("text_extraction_agent", self.run_text_extraction_agent)
@@ -814,7 +821,8 @@ class MultiAgentSystem:
             self.worker_router,
             {
                 "router": "router",
-                "evaluator": "evaluator"
+                "evaluator": "evaluator",
+                "human_feedback": "human_feedback"
             }
         )
         
@@ -838,6 +846,7 @@ class MultiAgentSystem:
         graph_builder.add_edge("text_extraction_agent", "worker")
         graph_builder.add_edge("file_classification_agent", "worker")
         graph_builder.add_edge("rag_agent", "worker")
+        graph_builder.add_edge("human_feedback", "worker")
         
         # Evaluator routes to reflection instead of directly to END
         graph_builder.add_conditional_edges(
@@ -852,6 +861,102 @@ class MultiAgentSystem:
         # Compile the graph
         self.graph = graph_builder.compile(checkpointer=memory)
         log("Multi-agent graph built successfully with reflection agent")
+        
+        # Tạo biểu đồ trực quan cho hệ thống đa tác tử
+        try:
+            from IPython.display import Image, display
+            import os
+            
+            # Tạo thư mục cho biểu đồ nếu chưa tồn tại
+            graph_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "graphs")
+            os.makedirs(graph_dir, exist_ok=True)
+            
+            # Đường dẫn đến file biểu đồ
+            graph_path = os.path.join(graph_dir, "multiagent.png")
+            
+            # Tạo biểu đồ dưới dạng PNG sử dụng Mermaid
+            try:
+                # Phương pháp 1: Sử dụng draw_mermaid_png
+                mermaid_png = self.graph.get_graph().draw_mermaid_png()
+                
+                # Lưu file PNG
+                with open(graph_path, 'wb') as f:
+                    f.write(mermaid_png)
+                    
+                log(f"Đã tạo biểu đồ LangGraph tại: {graph_path}")
+                
+                # Hiển thị biểu đồ nếu đang chạy trong môi trường Jupyter
+                try:
+                    display(Image(mermaid_png))
+                except:
+                    pass
+                    
+            except Exception as e1:
+                log(f"Lỗi khi tạo biểu đồ bằng draw_mermaid_png: {str(e1)}")
+                
+                # Phương pháp 2: Sử dụng to_dot
+                try:
+                    import tempfile
+                    import subprocess
+                    
+                    # Tạo biểu đồ dưới dạng dot
+                    dot_graph = self.graph.get_graph().to_dot()
+                    
+                    # Lưu file dot tạm thời
+                    temp_dot = tempfile.NamedTemporaryFile(suffix='.dot', delete=False)
+                    temp_dot.write(dot_graph.encode('utf-8'))
+                    temp_dot.close()
+                    
+                    # Sử dụng graphviz để chuyển đổi từ dot sang png
+                    subprocess.run(['dot', '-Tpng', temp_dot.name, '-o', graph_path])
+                    
+                    # Xóa file tạm
+                    os.unlink(temp_dot.name)
+                    
+                    log(f"Đã tạo biểu đồ LangGraph bằng phương pháp dot tại: {graph_path}")
+                    
+                except Exception as e2:
+                    log(f"Lỗi khi tạo biểu đồ bằng phương pháp dot: {str(e2)}")
+                    
+                    # Phương pháp 3: Sử dụng NetworkX
+                    try:
+                        import networkx as nx
+                        import matplotlib.pyplot as plt
+                        
+                        # Tạo biểu đồ từ JSON
+                        graph_json = self.graph.get_graph().to_json()
+                        
+                        G = nx.DiGraph()
+                        
+                        # Thêm nodes
+                        for node in graph_json.get('nodes', []):
+                            G.add_node(node['id'], type='agent')
+                        
+                        # Thêm edges
+                        for edge in graph_json.get('edges', []):
+                            G.add_edge(edge['source'], edge['target'], label=edge.get('condition', ''))
+                        
+                        # Vẽ biểu đồ
+                        plt.figure(figsize=(12, 8))
+                        pos = nx.spring_layout(G, seed=42)
+                        nx.draw(G, pos, with_labels=True, node_color='lightblue', node_size=2000, font_size=10, font_weight='bold')
+                        
+                        # Vẽ nhãn cạnh
+                        edge_labels = {(u, v): d['label'] for u, v, d in G.edges(data=True) if 'label' in d}
+                        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=8)
+                        
+                        plt.title('Hệ thống đa tác tử phân loại tài liệu', fontsize=16)
+                        plt.axis('off')
+                        plt.tight_layout()
+                        plt.savefig(graph_path, dpi=300, bbox_inches='tight')
+                        plt.close()
+                        
+                        log(f"Đã tạo biểu đồ LangGraph bằng NetworkX tại: {graph_path}")
+                    except Exception as e3:
+                        log(f"Lỗi khi tạo biểu đồ bằng NetworkX: {str(e3)}")
+        except Exception as e:
+            log(f"Lỗi khi tạo biểu đồ LangGraph: {str(e)}")
+            # Không làm gián đoạn quá trình khởi tạo nếu có lỗi khi tạo biểu đồ
     
     async def run_reflection_agent(self, state: AgentState) -> AgentState:
         """
@@ -860,6 +965,13 @@ class MultiAgentSystem:
         try:
             log("Running ReflectionAgent...")
             
+            # Kiểm tra xem có phản hồi đã được xử lý không
+            if state.get("feedback_processed", False):
+                # Nếu đã xử lý phản hồi, không cần chạy reflection agent
+                log("Phản hồi đã được xử lý, bỏ qua reflection", level='info')
+                state["task_complete"] = True
+                return state
+                
             # Track that we're using reflection agent
             if "used_tools" not in state:
                 state["used_tools"] = []
@@ -892,10 +1004,229 @@ class MultiAgentSystem:
             state["success_criteria_met"] = True
             return state
 
+    # async def process_human_feedback(self, state: AgentState) -> AgentState:
+    #     """
+    #     Xử lý phản hồi từ người dùng.
+    #     """
+    #     try:
+    #         # Kiểm tra xem có tin nhắn cuối cùng không
+    #         if not state.get("messages") or not isinstance(state["messages"][-1], HumanMessage):
+    #             return state
+                
+    #         # Lấy nội dung tin nhắn cuối cùng
+    #         last_message = state["messages"][-1].content
+    #         log(f"Kiểm tra tin nhắn cuối cùng: {last_message[:100]}...", level='info')
+                
+    #         # Kiểm tra xem có phải là phản hồi feedback không
+    #         if self.human_feedback_agent:
+    #             is_feedback = await self.human_feedback_agent.is_feedback_message(last_message)
+    #             if is_feedback:
+    #                 log("Đang xử lý phản hồi từ người dùng...", level='info')
+                    
+    #                 # Import LLM để sử dụng cho việc xử lý phản hồi
+    #                 from config.llm import gemini
+                    
+    #                 # Gọi human feedback agent để xử lý phản hồi
+    #                 updated_state = await self.human_feedback_agent.process_feedback(state, last_message)
+                    
+    #                 # Thêm vào chain of thought
+    #                 if "chain_of_thought" not in updated_state:
+    #                     updated_state["chain_of_thought"] = []
+    #                 updated_state["chain_of_thought"].append(f"💬 Đã xử lý phản hồi từ người dùng và cập nhật phân loại")
+                    
+    #                 # Đánh dấu là đã xử lý phản hồi
+    #                 updated_state["feedback_processed"] = True
+    #                 log("Đã xử lý phản hồi từ người dùng thành công", level='info')
+    #                 return updated_state
+    #             else:
+    #                 log("Tin nhắn không phải là phản hồi, bỏ qua", level='info')
+    #         else:
+    #             log("Không có human_feedback_agent để xử lý phản hồi", level='warning')
+                
+    #         return state
+            
+    #     except Exception as e:
+    #         log(f"Lỗi khi xử lý phản hồi từ người dùng: {e}", level='error')
+    #         import traceback
+    #         traceback.print_exc()
+    #         return state
+            
+    async def worker_router(self, state: AgentState) -> str:
+        """
+        Router node that decides where to go next after the worker node.
+        """
+        log("🔁 [WORKER_ROUTER] Định tuyến sau worker node", level='info')
+        log(f"🔄 [WORKER_ROUTER] Trạng thái is_feedback: {state.get('is_feedback')}", level='info')
+        log(f"🔄 [WORKER_ROUTER] Trạng thái feedback_processed: {state.get('feedback_processed')}", level='info')
+        
+        # Nếu đã được đánh dấu là phản hồi từ worker
+        if state.get("is_feedback") or state.get("feedback_processed"):
+            log("✅ [WORKER_ROUTER] Phản hồi đã được xử lý, định tuyến đến evaluator", level='info')
+            return "evaluator"
+            
+        # Kiểm tra lại xem tin nhắn cuối cùng có phải là phản hồi không (trường hợp bỏ sót)
+        if state.get("messages") and isinstance(state["messages"][-1], HumanMessage):
+            last_message = state["messages"][-1].content
+            log(f"💬 [WORKER_ROUTER] Kiểm tra lại tin nhắn: '{last_message}'", level='info')
+            
+            # Kiểm tra trực tiếp các pattern phổ biến trước khi gọi is_feedback_message
+            message_lower = last_message.lower()
+            if ".pdf" in message_lower and "phân loại đúng là" in message_lower:
+                log("🎯 [WORKER_ROUTER] Phát hiện pattern '.pdf phân loại đúng là', xử lý như feedback", level='info')
+                state["is_feedback"] = True
+                log("💾 [WORKER_ROUTER] Đã đánh dấu state[\"is_feedback\"] = True", level='info')
+                return "human_feedback"
+            
+            # Kiểm tra xem có phải là phản hồi không
+            try:
+                if self.human_feedback_agent:
+                    is_feedback = await self.human_feedback_agent.is_feedback_message(last_message)
+                    log(f"🔍 [WORKER_ROUTER] Kết quả kiểm tra feedback: {is_feedback}", level='info')
+                    
+                    if is_feedback:
+                        log("🔔 [WORKER_ROUTER] Phát hiện phản hồi từ người dùng trong worker_router, định tuyến đến human_feedback node", level='info')
+                        # Đánh dấu là phản hồi để các node khác biết
+                        state["is_feedback"] = True
+                        log("💾 [WORKER_ROUTER] Đã đánh dấu state[\"is_feedback\"] = True", level='info')
+                        return "human_feedback"
+            except Exception as e:
+                log(f"⚠️ [WORKER_ROUTER] Lỗi khi kiểm tra feedback: {str(e)}", level='error')
+    
+        # Nếu không còn agent nào trong kế hoạch, chuyển sang evaluator
+        if not state.get("current_agents"):
+            log("🔍 [WORKER_ROUTER] Không còn agent nào trong kế hoạch, chuyển sang evaluator", level='info')
+            return "evaluator"
+            
+        # Nếu đã sử dụng quá nhiều agent, chuyển sang evaluator để tránh vòng lặp vô hạn
+        if len(state.get("used_tools", [])) >= 3:
+            log("⚠️ [WORKER_ROUTER] Đã sử dụng quá nhiều agent, chuyển sang evaluator", level='info')
+            return "evaluator"
+            
+        # Kiểm tra xem có đang lặp lại agent không
+        if len(state.get("used_tools", [])) >= 2:
+            last_two_tools = state["used_tools"][-2:]
+            if last_two_tools[0] == last_two_tools[1]:
+                log("⛔ [WORKER_ROUTER] Phát hiện lặp lại agent, chuyển sang evaluator", level='info')
+                return "evaluator"
+                
+        # Tiếp tục với router
+        log("➡️ [WORKER_ROUTER] Tiếp tục với router", level='info')
+        return "router"
+    
+    async def process_human_feedback(self, state: AgentState) -> AgentState:
+        """
+        Process human feedback on classification or metadata.
+        This method is called when a feedback message is detected.
+        """
+        try:
+            log("🔄 [HUMAN_FEEDBACK] Bắt đầu xử lý phản hồi từ người dùng", level='info')
+            
+            # Lấy tin nhắn phản hồi từ người dùng
+            last_message = state["messages"][-1].content
+            log(f"💬 [HUMAN_FEEDBACK] Tin nhắn phản hồi: '{last_message}'", level='info')
+            
+            # Đảm bảo human_feedback_agent được khởi tạo với session_id hiện tại
+            if not self.human_feedback_agent or self.human_feedback_agent.session_id != self.session_id:
+                from agents.human_feedback_agent import HumanFeedbackAgent
+                self.human_feedback_agent = HumanFeedbackAgent(session_id=self.session_id)
+                log(f"🔄 [HUMAN_FEEDBACK] Khởi tạo lại HumanFeedbackAgent với session_id: {self.session_id}", level='info')
+            
+            # Sử dụng human_feedback_agent để xử lý phản hồi
+            if self.human_feedback_agent:
+                # Trích xuất thông tin phản hồi
+                feedback_info = await self.human_feedback_agent.extract_feedback_info(last_message, self.model)
+                log(f"📝 [HUMAN_FEEDBACK] Thông tin phản hồi: {feedback_info}", level='info')
+                
+                # Đảm bảo state có trường messages
+                if "messages" not in state:
+                    state["messages"] = []
+                
+                # Áp dụng phản hồi vào kết quả phân loại
+                updated_state = await self.human_feedback_agent.apply_context_adaptation(feedback_info, state)
+                
+                # Đánh dấu là đã xử lý phản hồi
+                updated_state["feedback_processed"] = True
+                
+                # Thông báo xác nhận đã được thêm trong apply_context_adaptation
+                log("✅ [HUMAN_FEEDBACK] Hoàn thành xử lý phản hồi", level='info')
+                return updated_state
+            else:
+                log("⚠️ [HUMAN_FEEDBACK] Không có human_feedback_agent để xử lý phản hồi!", level='warning')
+                # Thêm thông báo lỗi
+                error_msg = "❌ Không thể xử lý phản hồi do thiếu human_feedback_agent"
+                state["messages"].append(AIMessage(content=error_msg))
+                return state
+                
+        except Exception as e:
+            log(f"❌ [HUMAN_FEEDBACK] Lỗi khi xử lý phản hồi: {str(e)}", level='error')
+            import traceback
+            traceback.print_exc()
+            # Thêm thông báo lỗi
+            error_msg = f"❌ Đã xảy ra lỗi khi xử lý phản hồi: {str(e)}"
+            state["messages"].append(AIMessage(content=error_msg))
+            return state
+    
     async def worker(self, state: AgentState) -> AgentState:
         """
         Worker node that processes the user's query and determines next steps.
         """
+        log("🔧 [WORKER] Bắt đầu xử lý trong worker node", level='info')
+        
+        # Kiểm tra xem tin nhắn cuối cùng có phải là phản hồi không
+        if state.get("messages") and isinstance(state["messages"][-1], HumanMessage):
+            last_message = state["messages"][-1].content
+            log(f"💬 [WORKER] Tin nhắn cuối cùng là HumanMessage: '{last_message}'", level='info')
+            
+            # Kiểm tra trực tiếp các pattern phổ biến trước khi gọi is_feedback_message
+            message_lower = last_message.lower()
+            
+            # Kiểm tra pattern ".pdf phân loại đúng là"
+            if ".pdf" in message_lower and "phân loại đúng là" in message_lower:
+                log("🎯 [WORKER] Phát hiện pattern '.pdf phân loại đúng là', xử lý như feedback", level='info')
+                state["is_feedback"] = True
+                log("💾 [WORKER] Đã đánh dấu state[\"is_feedback\"] = True", level='info')
+                # Xử lý phản hồi trực tiếp
+                state = await self.process_human_feedback(state)
+                log("✅ [WORKER] Hoàn thành xử lý feedback, trả về state", level='info')
+                return state
+            
+            # Kiểm tra pattern "không phải loại"
+            if ".pdf" in message_lower and "không phải loại" in message_lower:
+                log("🎯 [WORKER] Phát hiện pattern '.pdf không phải loại', xử lý như feedback", level='info')
+                state["is_feedback"] = True
+                log("💾 [WORKER] Đã đánh dấu state[\"is_feedback\"] = True", level='info')
+                # Xử lý phản hồi trực tiếp
+                state = await self.process_human_feedback(state)
+                log("✅ [WORKER] Hoàn thành xử lý feedback, trả về state", level='info')
+                return state
+            
+            # Kiểm tra ngay từ đầu xem có phải là phản hồi không
+            if self.human_feedback_agent:
+                log("🤖 [WORKER] Có human_feedback_agent, kiểm tra feedback...", level='info')
+                try:
+                    is_feedback = await self.human_feedback_agent.is_feedback_message(last_message)
+                    log(f"🔍 [WORKER] Kết quả kiểm tra feedback: {is_feedback}", level='info')
+                    
+                    if is_feedback:
+                        log("✅ [WORKER] Phát hiện phản hồi từ người dùng trong worker, đang xử lý...", level='info')
+                        # Đánh dấu là phản hồi để worker_router có thể định tuyến đúng
+                        state["is_feedback"] = True
+                        log("💾 [WORKER] Đã đánh dấu state[\"is_feedback\"] = True", level='info')
+                        # Xử lý phản hồi trực tiếp
+                        state = await self.process_human_feedback(state)
+                        log("✅ [WORKER] Hoàn thành xử lý feedback, trả về state", level='info')
+                        return state
+                    else:
+                        log("❌ [WORKER] Tin nhắn không phải là feedback, tiếp tục xử lý bình thường", level='info')
+                except Exception as e:
+                    log(f"⚠️ [WORKER] Lỗi khi kiểm tra feedback: {str(e)}", level='error')
+            else:
+                log("⚠️ [WORKER] Không có human_feedback_agent!", level='warning')
+        else:
+            log("💬 [WORKER] Không có tin nhắn hoặc tin nhắn cuối không phải HumanMessage", level='info')
+                
+        # Nếu không phải phản hồi, tiếp tục xử lý bình thường
+        
         # Create or update system message with task information
         system_message = f"""
         Bạn là một trợ lý AI thông minh có thể sử dụng nhiều công cụ và tác tử chuyên biệt để hoàn thành nhiệm vụ.
@@ -1008,29 +1339,7 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
         
         return state
         
-    def worker_router(self, state: AgentState) -> str:
-        """
-        Route from worker node to either router or evaluator.
-        """
-        # Nếu không còn agent nào trong kế hoạch, chuyển sang evaluator
-        if not state["current_agents"]:
-            log("Không còn agent nào trong kế hoạch, chuyển sang evaluator")
-            return "evaluator"
-            
-        # Nếu đã sử dụng quá nhiều agent, chuyển sang evaluator để tránh vòng lặp vô hạn
-        if len(state.get("used_tools", [])) >= 3:
-            log("Đã sử dụng quá nhiều agent, chuyển sang evaluator")
-            return "evaluator"
-            
-        # Kiểm tra xem có đang lặp lại agent không
-        if len(state.get("used_tools", [])) >= 2:
-            last_two_tools = state["used_tools"][-2:]
-            if last_two_tools[0] == last_two_tools[1]:
-                log("Phát hiện lặp lại agent, chuyển sang evaluator")
-                return "evaluator"
-                
-        # Tiếp tục với router
-        return "router"
+    # Removed duplicate worker_router method
     
     def determine_agent(self, state: AgentState) -> str:
         """
@@ -1146,6 +1455,14 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
         """
         Evaluator node that assesses if the task has been completed successfully.
         """
+        # Kiểm tra xem có phản hồi đã được xử lý không
+        if state.get("feedback_processed", False):
+            # Nếu đã xử lý phản hồi, đánh dấu nhiệm vụ hoàn thành
+            log("Phản hồi đã được xử lý, đánh dấu nhiệm vụ hoàn thành", level='info')
+            state["task_complete"] = True
+            state["success_criteria_met"] = True
+            return state
+            
         # Format the conversation history
         conversation = "Lịch sử hội thoại:\n\n"
         for message in state["messages"]:
@@ -1738,10 +2055,51 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
                     # Get labels from state
                     labels = state.get("classification_labels", {})
                     if labels:
-                        # Use the first label as default
-                        first_label = next(iter(labels.values()))
-                        metadata_params['label'] = first_label
-                        log(f"Using label from state: {first_label}")
+                        # For multiple files, store individual labels
+                        if 'is_multi_file' in metadata_params and metadata_params['is_multi_file']:
+                            file_labels = {}
+                            for file_path in metadata_params.get('file_paths', []):
+                                file_name = os.path.basename(file_path)
+                                # Try to find label by file name or path
+                                if file_name in labels:
+                                    file_labels[file_name] = labels[file_name]
+                                    log(f"Found label for {file_name}: {labels[file_name]}")
+                                elif file_path in labels:
+                                    file_labels[file_name] = labels[file_path]
+                                    log(f"Found label for {file_path}: {labels[file_path]}")
+                            
+                            if file_labels:
+                                metadata_params['file_labels'] = file_labels
+                                log(f"Using individual labels for files: {file_labels}")
+                                log(f"DEBUG: file_labels dictionary contents: {file_labels}")
+                                log(f"DEBUG: metadata_params structure: {metadata_params}")
+                                
+                                # Use the first file's label as the main label
+                                first_file_name = os.path.basename(metadata_params.get('file_paths', ['unknown'])[0])
+                                if first_file_name in file_labels:
+                                    metadata_params['label'] = file_labels[first_file_name]
+                                    log(f"Using first file's label as main label: {file_labels[first_file_name]}")
+                                else:
+                                    # Fallback to first label in the dictionary
+                                    first_label = next(iter(labels.values()))
+                                    metadata_params['label'] = first_label
+                                    log(f"Using first available label as main label: {first_label}")
+                        else:
+                            # For single file, use the matching label if available
+                            file_name = metadata_params.get('file_name')
+                            file_path = metadata_params.get('file_path')
+                            
+                            if file_name in labels:
+                                metadata_params['label'] = labels[file_name]
+                                log(f"Using label for {file_name}: {labels[file_name]}")
+                            elif file_path in labels:
+                                metadata_params['label'] = labels[file_path]
+                                log(f"Using label for {file_path}: {labels[file_path]}")
+                            else:
+                                # Fallback to first label
+                                first_label = next(iter(labels.values()))
+                                metadata_params['label'] = first_label
+                                log(f"Using first available label as fallback: {first_label}")
             
             # Check if we have individual file extraction results in the state
             individual_contents = {}
@@ -1808,9 +2166,16 @@ Hãy điều chỉnh cách tiếp cận của bạn dựa trên phản hồi nà
                 enhanced_query += f"- NHÓM FILE: {metadata_params['file_count']} files\n"
                 enhanced_query += f"- TÊN FILE CHÍNH: {metadata_params['file_name']}\n"
                 
-                # Thêm danh sách tất cả các file
-                file_list = "\n".join([f"  + {i+1}. {name}" for i, name in enumerate(metadata_params['file_names'])])
-                enhanced_query += f"- DANH SÁCH FILES:\n{file_list}\n"
+                # Thêm danh sách tất cả các file và phân loại của chúng
+                file_list = []
+                for i, name in enumerate(metadata_params['file_names']):
+                    file_entry = f"  + {i+1}. {name}"
+                    # Thêm phân loại riêng cho từng file nếu có
+                    if 'file_labels' in metadata_params and name in metadata_params['file_labels']:
+                        file_entry += f" - Phân loại: {metadata_params['file_labels'][name]}"
+                    file_list.append(file_entry)
+                
+                enhanced_query += f"- DANH SÁCH FILES:\n{chr(10).join(file_list)}\n"
                 
                 # Thêm đường dẫn file chính
                 enhanced_query += f"- ĐƯỜNG DẪN CHÍNH: {metadata_params['file_path']}\n"
@@ -1919,10 +2284,20 @@ LƯU Ý CUỐI CÙNG:
                     metadata_for_agent['file_names'] = metadata_params.get('file_names', [])
                     metadata_for_agent['file_paths'] = metadata_params.get('file_paths', [])
                 
+                # Thêm classification_labels từ state nếu có
+                if 'classification_labels' in state:
+                    metadata_for_agent['classification_labels'] = state['classification_labels']
+                    log(f"Adding classification_labels from state: {state['classification_labels']}")
+                else:
+                    log("No classification_labels found in state")
+                
+                # In ra metadata_for_agent để debug
+                log(f"Final metadata_for_agent: {metadata_for_agent}")
+                
                 response = metadata_agent.invoke(
                     query=enhanced_query,
-                    sessionId=self.session_id,
-                    metadata=metadata_for_agent
+                    metadata=metadata_for_agent,
+                    sessionId=self.session_id
                 )
                 log("MetadataAgent completed successfully")
                 
@@ -2581,29 +2956,168 @@ LƯU Ý CUỐI CÙNG:
                 state["used_tools"] = []
             state["used_tools"].append("file_classification")
 
-            # Get the file classification agent
-            file_classification_agent = self.agents["file_classification"]
-
-            # Run the agent with the prepared query
-            log(f"Running FileClassificationAgent with query: {classification_query[:100]}...")
-            response = file_classification_agent.invoke(classification_query, self.session_id)
-            log("FileClassificationAgent completed")
+            # Check if we have stored classifications from feedback memory first
+            from agents.human_feedback_agent import HumanFeedbackAgent
+            human_feedback_agent = HumanFeedbackAgent(session_id=self.session_id)
             
-            # Log raw response for debugging
-            log(f"Raw FileClassificationAgent response: {response}")
+            # Check if any of the files have stored classifications
+            stored_classifications = {}
+            all_files_have_stored_classifications = False
+            
+            if file_paths:
+                all_files_have_stored_classifications = True
+                for file_path in file_paths:
+                    file_name = os.path.basename(file_path)
+                    
+                    # Try to get stored classification by file path or file name
+                    stored_classification = human_feedback_agent.get_stored_classification(file_path)
+                    
+                    # If not found by path, try by filename
+                    if not stored_classification:
+                        stored_classification = human_feedback_agent.get_stored_classification(file_name)
+                    
+                    if stored_classification:
+                        log(f"✅ Found stored classification for {file_name}: {stored_classification}", level='info')
+                        stored_classifications[file_path] = stored_classification
+                    else:
+                        log(f"❌ No stored classification found for {file_name}", level='info')
+                        all_files_have_stored_classifications = False
+            
+            # Handle stored classifications
+            if stored_classifications:
+                log(f"Found stored classifications for {len(stored_classifications)} out of {len(file_paths)} files", level='info')
+                
+                # If we have stored classifications for all files, use them instead of calling the agent
+                if all_files_have_stored_classifications:
+                    log(f"Using stored classifications for all {len(file_paths)} files", level='info')
+                    
+                    # Format the classification result
+                    if len(stored_classifications) == 1:
+                        file_path = list(stored_classifications.keys())[0]
+                        classification_result = stored_classifications[file_path]
+                        response_content = f"🏷️ Kết quả phân loại file {os.path.basename(file_path)}: {classification_result} (từ phản hồi người dùng)"
+                    else:
+                        # Multiple files
+                        classifications = []
+                        for file_path, classification in stored_classifications.items():
+                            classifications.append(f"{os.path.basename(file_path)}: {classification}")
+                        
+                        formatted_classifications = "\n- ".join(classifications)
+                        response_content = f"🏷️ Kết quả phân loại {len(stored_classifications)} files (từ phản hồi người dùng):\n- {formatted_classifications}"
+                    
+                    # Add the response to the state
+                    state["messages"].append(AIMessage(content=response_content))
+                    
+                    # Store result in agent_results
+                    if "agent_results" not in state:
+                        state["agent_results"] = {}
+                    
+                    if len(stored_classifications) == 1:
+                        state["agent_results"]["file_classification"] = list(stored_classifications.values())[0]
+                    else:
+                        state["agent_results"]["file_classification"] = "\n".join([f"{os.path.basename(k)}: {v}" for k, v in stored_classifications.items()])
+                    
+                    # Store classification labels
+                    classification_labels = {}
+                    for file_path, classification in stored_classifications.items():
+                        classification_labels[os.path.basename(file_path)] = classification
+                    
+                    state["classification_labels"] = classification_labels
+                    log(f"Stored classification labels in state: {classification_labels}")
+                    
+                    return state
+                else:
+                    # We have some stored classifications but not for all files
+                    # We'll run the classification agent for the remaining files and then merge the results
+                    log(f"Using stored classifications for some files and running classification agent for others", level='info')
+                    
+                    # Keep track of which files need classification
+                    files_needing_classification = []
+                    for file_path in file_paths:
+                        if file_path not in stored_classifications:
+                            files_needing_classification.append(file_path)
+                    
+                    log(f"Files needing classification: {[os.path.basename(f) for f in files_needing_classification]}", level='info')
+                    
+                    # Modify the query to only classify the files that need classification
+                    if files_needing_classification:
+                        file_items = []
+                        for file_path in files_needing_classification:
+                            file_name = os.path.basename(file_path)
+                            file_items.append(f"- {file_name}")
+                        
+                        file_paths_str = "\n".join(file_items)
+                        classification_query = f"Hãy phân loại từng file sau và trả về kết quả theo định dạng 'tên_file - phân_loại':\n{file_paths_str}"
+                        log(f"Modified query to classify only {len(files_needing_classification)} files that need classification")
+            
+            # If we don't have stored classifications for all files, run the agent
+            log("Running file classification agent for files without stored classifications")
+            file_classification_agent = self.agents["file_classification"]
+            
+            # Keep track of which files need classification and which already have stored classifications
+            files_needing_classification = []
+            final_classifications = {}
+            
+            # First, add all stored classifications to our final result
+            for file_path in file_paths:
+                file_name = os.path.basename(file_path)
+                if file_path in stored_classifications:
+                    final_classifications[file_name] = stored_classifications[file_path]
+                    log(f"Using stored classification for {file_name}: {stored_classifications[file_path]}", level='info')
+                else:
+                    files_needing_classification.append(file_path)
+                    
+            # If all files have stored classifications, we can skip running the classification agent
+            if not files_needing_classification:
+                log("All files have stored classifications, skipping classification agent", level='info')
+                all_files_have_stored_classifications = True
+
+            # Run the agent with the prepared query only if there are files that need classification
+            if files_needing_classification:
+                # Modify the query based on the number of files that need classification
+                if len(files_needing_classification) == 1:
+                    # If only one file needs classification, use a simpler query format
+                    file_name = os.path.basename(files_needing_classification[0])
+                    classification_query = f"Hãy phân loại file: {file_name}"
+                    log(f"Running FileClassificationAgent with query for single file: {classification_query}")
+                else:
+                    # If multiple files need classification
+                    file_items = []
+                    for file_path in files_needing_classification:
+                        file_name = os.path.basename(file_path)
+                        file_items.append(f"- {file_name}")
+                    
+                    file_paths_str = "\n".join(file_items)
+                    classification_query = f"Hãy phân loại từng file sau và trả về kết quả theo định dạng 'tên_file - phân_loại':\n{file_paths_str}"
+                    log(f"Running FileClassificationAgent with query for {len(files_needing_classification)} files: {classification_query[:100]}...")
+                
+                response = file_classification_agent.invoke(classification_query, self.session_id)
+                log("FileClassificationAgent completed")
+                
+                # Log raw response for debugging
+                log(f"Raw FileClassificationAgent response: {response}")
+            else:
+                log("Skipping FileClassificationAgent as all files have stored classifications")
+                response = None
 
             # Xử lý kết quả từ FileClassificationAgent
             classification_result = ""
             
-            # Trường hợp 1: Response là dict với key 'content'
-            if isinstance(response, dict) and 'content' in response:
-                classification_result = response['content']
-                log(f"Extracted classification from response dict: {classification_result}")
-            
-            # Trường hợp 2: Response là string
-            elif isinstance(response, str):
-                classification_result = response
-                log(f"Response is already a string: {classification_result}")
+            # Only process response if we ran the classification agent
+            if files_needing_classification and response is not None:
+                # Trường hợp 1: Response là dict với key 'content'
+                if isinstance(response, dict) and 'content' in response:
+                    classification_result = response['content']
+                    log(f"Extracted classification from response dict: {classification_result}")
+                
+                # Trường hợp 2: Response là string
+                elif isinstance(response, str):
+                    classification_result = response
+                    log(f"Response is already a string: {classification_result}")
+            else:
+                # If we didn't run the classification agent, we'll just use the stored classifications
+                log("Using only stored classifications")
+                classification_result = ""
                 
             # Trích xuất kết quả phân loại thực sự từ phản hồi
             # Tìm kiếm mẫu "Kết quả phân loại file" hoặc các mẫu tương tự
@@ -2657,70 +3171,104 @@ LƯU Ý CUỐI CÙNG:
                     classification_result = lines[0]
                     log(f"Removed duplicate classification results, using: {classification_result}")
 
-            # Add the agent's response to the state with clear indication of classification results
-            if file_paths:
-                if len(file_paths) == 1:
-                    response_content = f"🏷️ Kết quả phân loại file {file_paths[0]}: {classification_result}"
-                else:
-                    # Tạo danh sách tên file
-                    file_names = [os.path.basename(path) for path in file_paths]
-                    file_list = ", ".join(file_names[:3])
-                    if len(file_names) > 3:
-                        file_list += f" và {len(file_names) - 3} file khác"
-                    
-                    # Kiểm tra nếu có nhiều kết quả phân loại cho nhiều file
-                    lines = classification_result.strip().split('\n')
-                    if len(lines) > 1 and len(lines) == len(file_paths):
-                        # Tạo danh sách phân loại theo từng file
-                        classifications = []
-                        for i, (file_name, classification) in enumerate(zip(file_names, lines)):
-                            classifications.append(f"{file_name}: {classification}")
-                        
-                        formatted_classifications = "\n- ".join(classifications)
-                        response_content = f"🏷️ Kết quả phân loại {len(file_paths)} files:\n- {formatted_classifications}"
-                    else:
-                        # Nếu số lượng phân loại không khớp với số file, sử dụng định dạng cũ
-                        response_content = f"🏷️ Kết quả phân loại {len(file_paths)} files ({file_list}): {classification_result}"
-            else:
-                response_content = f"🏷️ Kết quả phân loại: {classification_result}"
+            # Process any new classifications from the agent response
+            if files_needing_classification and classification_result:
+                log(f"Processing classification result: {classification_result}", level='info')
                 
-            log(f"FileClassificationAgent response: {response_content}")
+                # Check if the response is just the query repeated back
+                if "Hãy phân loại từng file" in classification_result or "Hãy phân loại file:" in classification_result:
+                    log("Classification agent returned the query instead of results, using default classification", level='info')
+                    # Use a default classification for files that need classification
+                    for file_path in files_needing_classification:
+                        file_name = os.path.basename(file_path)
+                        final_classifications[file_name] = "Tài liệu tài chính"
+                        log(f"Using default classification for {file_name}: Tài liệu tài chính", level='info')
+                else:
+                    # Try to parse the classification results
+                    lines = classification_result.strip().split('\n')
+                    classification_found = False
+                    
+                    # First try to find lines with the format "filename - classification"
+                    for line in lines:
+                        if '-' in line:
+                            parts = line.split('-', 1)
+                            if len(parts) == 2:
+                                file_name = parts[0].strip()
+                                classification = parts[1].strip()
+                                final_classifications[file_name] = classification
+                                classification_found = True
+                                log(f"Added new classification for {file_name}: {classification}", level='info')
+                    
+                    # If no classifications were found and we only have one file, use the entire response
+                    if not classification_found and len(files_needing_classification) == 1:
+                        file_name = os.path.basename(files_needing_classification[0])
+                        
+                        # Check for common patterns in the response
+                        if "phân loại:" in classification_result.lower():
+                            # Try to extract the classification after "phân loại:"
+                            match = re.search(r'phân loại:\s*([^\n]+)', classification_result.lower())
+                            if match:
+                                classification = match.group(1).strip()
+                                final_classifications[file_name] = classification
+                                log(f"Extracted classification after 'phân loại:' for {file_name}: {classification}", level='info')
+                                classification_found = True
+                        
+                        # If still no classification found, use the entire response
+                        if not classification_found:
+                            final_classifications[file_name] = classification_result.strip()
+                            log(f"Added single classification for {file_name}: {classification_result.strip()}", level='info')
             
-            # Thêm kết quả phân loại vào state
+            # Format the response with all classifications (stored + new)
+            if final_classifications:
+                if len(final_classifications) == 1:
+                    file_name = list(final_classifications.keys())[0]
+                    classification = final_classifications[file_name]
+                    response_content = f"🏷️ Kết quả phân loại file {file_name}: {classification}"
+                else:
+                    # Multiple files
+                    classifications = []
+                    for file_name, classification in final_classifications.items():
+                        # Mark stored classifications
+                        is_stored = any(file_name == os.path.basename(k) for k in stored_classifications)
+                        source = " (từ phản hồi người dùng)" if is_stored else ""
+                        classifications.append(f"{file_name}: {classification}{source}")
+                    
+                    formatted_classifications = "\n- ".join(classifications)
+                    response_content = f"🏷️ Kết quả phân loại {len(final_classifications)} files:\n- {formatted_classifications}"
+            else:
+                response_content = f"🏷️ Không có kết quả phân loại"
+            
+            log(f"Final classification response: {response_content}")
+            
+            # Add the response to the state
             state["messages"].append(AIMessage(content=response_content))
             
             # Store result in agent_results
             if "agent_results" not in state:
                 state["agent_results"] = {}
-            state["agent_results"]["file_classification"] = classification_result
             
-            # Lưu thông tin file đã phân loại vào state
+            if len(final_classifications) == 1:
+                state["agent_results"]["file_classification"] = list(final_classifications.values())[0]
+            else:
+                state["agent_results"]["file_classification"] = "\n".join([f"{k}: {v}" for k, v in final_classifications.items()])
+            
+            # Store classified files in state
             if file_paths:
                 state["classified_files"] = file_paths
-                
-                # Extract and store classification labels
-                classification_labels = {}
-                
-                # Parse classification results
-                if len(file_paths) == 1:
-                    # Single file case
-                    classification_labels[os.path.basename(file_paths[0])] = classification_result.strip()
-                else:
-                    # Multi-file case
-                    lines = classification_result.strip().split('\n')
-                    
-                    # Check if we have one classification per file
-                    if len(lines) == len(file_paths):
-                        for i, path in enumerate(file_paths):
-                            classification_labels[os.path.basename(path)] = lines[i].strip()
-                    else:
-                        # If we don't have one classification per file, use the same classification for all files
-                        for path in file_paths:
-                            classification_labels[os.path.basename(path)] = classification_result.strip()
-                
-                # Store labels in state
-                state["classification_labels"] = classification_labels
-                log(f"Stored classification labels in state: {classification_labels}")
+            
+            # Store classification labels in state
+            # Make sure we store both filename and full path as keys for better matching
+            classification_labels = {}
+            for file_name, classification in final_classifications.items():
+                classification_labels[file_name] = classification
+                # Also try to find the full path for this file name
+                for file_path in file_paths:
+                    if os.path.basename(file_path) == file_name:
+                        classification_labels[file_path] = classification
+                        break
+            
+            state["classification_labels"] = classification_labels
+            log(f"Final classification labels stored in state: {classification_labels}")
             
             # Analyze the response to suggest next agent
             log("Analyzing response to suggest next agent...")
@@ -2844,6 +3392,10 @@ LƯU Ý CUỐI CÙNG:
             # Set session ID
             self.session_id = session_id or str(uuid.uuid4())
             
+            # Reinitialize human_feedback_agent with the correct session_id
+            from agents.human_feedback_agent import HumanFeedbackAgent
+            self.human_feedback_agent = HumanFeedbackAgent(session_id=self.session_id)
+            
             # Initialize state
             state = {
                 "messages": [HumanMessage(content=query)],
@@ -2860,6 +3412,59 @@ LƯU Ý CUỐI CÙNG:
                 "user_role": user_role  # Thêm vai trò người dùng vào state
             }
             
+            # Kiểm tra xem tin nhắn có phải là phản hồi không trước khi lập kế hoạch
+            message_lower = query.lower()
+            is_feedback = False
+            
+            # Kiểm tra trực tiếp các pattern phổ biến
+            if ".pdf" in message_lower and "phân loại đúng là" in message_lower:
+                log("🎯 [RUN] Phát hiện pattern '.pdf phân loại đúng là', xử lý như feedback", level='info')
+                is_feedback = True
+            elif ".pdf" in message_lower and "không phải loại" in message_lower:
+                log("🎯 [RUN] Phát hiện pattern '.pdf không phải loại', xử lý như feedback", level='info')
+                is_feedback = True
+            elif "finance2023.pdf không phải loại" in message_lower:
+                log("🎯 [RUN] Phát hiện pattern 'finance2023.pdf không phải loại', xử lý như feedback", level='info')
+                is_feedback = True
+            elif "không phải loại" in message_lower and "phải cụ thể hơn" in message_lower:
+                log("🎯 [RUN] Phát hiện pattern 'không phải loại' + 'phải cụ thể hơn', xử lý như feedback", level='info')
+                is_feedback = True
+            
+            # Kiểm tra thông qua human_feedback_agent nếu có
+            if not is_feedback and self.human_feedback_agent:
+                try:
+                    is_feedback = await self.human_feedback_agent.is_feedback_message(query)
+                    log(f"🔍 [RUN] Kết quả kiểm tra feedback từ human_feedback_agent: {is_feedback}", level='info')
+                except Exception as e:
+                    log(f"⚠️ [RUN] Lỗi khi kiểm tra feedback: {str(e)}", level='error')
+            
+            # Nếu là phản hồi, xử lý trực tiếp
+            if is_feedback:
+                log("✅ [RUN] Phát hiện phản hồi, xử lý trực tiếp", level='info')
+                state["is_feedback"] = True
+                state["chain_of_thought"].append("🔄 Phát hiện phản hồi từ người dùng, chuyển sang xử lý phản hồi")
+                try:
+                    state = await self.process_human_feedback(state)
+                except Exception as e:
+                    log(f"⚠️ [RUN] Lỗi khi xử lý phản hồi: {str(e)}", level='error')
+                    import traceback
+                    traceback.print_exc()
+                    # Thêm thông báo lỗi vào state
+                    state["messages"].append(AIMessage(content=f"❌ Đã xảy ra lỗi khi xử lý phản hồi: {str(e)}"))
+                
+                # Tạo phản hồi cuối cùng
+                final_content = "Cảm ơn bạn đã cung cấp phản hồi. Tôi đã ghi nhận và cập nhật thông tin phân loại."
+                state["messages"].append(AIMessage(content=final_content))
+                
+                return {
+                    "response_type": "data",
+                    "content": final_content,
+                    "is_task_complete": True,
+                    "require_user_input": False,
+                    "chain_of_thought": state["chain_of_thought"]
+                }
+            
+            # Nếu không phải phản hồi, tiếp tục quy trình bình thường
             # Plan which agents to use
             state = await self.plan_agents(state)
             log(f"Kế hoạch agent ban đầu: {state['current_agents']}")
@@ -2868,6 +3473,7 @@ LƯU Ý CUỐI CÙNG:
             state = await self._validate_agent_sequence(state)
             log(f"Kế hoạch agent sau khi kiểm tra: {state['current_agents']}")
             state["chain_of_thought"].append(f"🧠2. Lập kế hoạch sử dụng các agent: {', '.join(state['current_agents'])}")
+            
             
             # Run the agents in the planned order
             step_count = 3
@@ -3115,4 +3721,72 @@ async def main():
 
 if __name__ == "__main__":
     import uuid
-    asyncio.run(main())
+    import asyncio
+    
+    async def test_feedback_detection():
+        print("=== Test phát hiện phản hồi từ người dùng ===\n")
+        
+        # Khởi tạo hệ thống đa tác tử
+        system = MultiAgentSystem()
+        await system.initialize()
+        
+        # Các ví dụ phản hồi cần kiểm tra
+        test_messages = [
+            "finance2023.pdf không phải loại Báo cáo doanh thu mà phải cụ thể hơn ví dụ Báo cáo doanh thu 2023",
+
+            "Tìm file có nội dung Doanh thu",  # Không phải feedback
+        ]
+        
+        # Kiểm tra từng tin nhắn
+        for i, message in enumerate(test_messages, 1):
+            is_feedback = await system.human_feedback_agent.is_feedback_message(message)
+            print(f"Tin nhắn {i}: '{message}'")
+            print(f"→ Phát hiện là feedback: {is_feedback}\n")
+        
+        # Test xử lý phản hồi cụ thể
+        print("\n=== Test xử lý phản hồi ===\n")
+        
+        # Tạo trạng thái ban đầu với kết quả phân loại
+        test_state = {
+            "messages": [
+                SystemMessage(content="Hệ thống phân loại tài liệu"),
+                AIMessage(content="🗂️ Chào bạn, mình đã tìm thấy 2 file chứa nội dung liên quan đến \"Doanh thu\" và chúng đều được phân loại là \"Báo cáo doanh thu\", bao gồm finance2024.pdf và finance2023.pdf.")
+            ],
+            "classification_results": {
+                "finance2024.pdf": {"label": "Báo cáo doanh thu", "confidence": 0.9},
+                "finance2023.pdf": {"label": "Báo cáo doanh thu", "confidence": 0.85}
+            },
+            "current_agents": [],
+            "used_tools": ["rag_agent", "file_classification_agent"],
+            "chain_of_thought": []
+        }
+        
+        # Thêm phản hồi từ người dùng
+        feedback = "finance2023.pdf không phải loại Báo cáo doanh thu mà phải cụ thể hơn ví dụ Báo cáo doanh thu 2023"
+        test_state["messages"].append(HumanMessage(content=feedback))
+        
+        print("Trạng thái ban đầu:")
+        for file, info in test_state["classification_results"].items():
+            print(f"- {file}: {info['label']} ({info['confidence']:.0%} tin cậy)")
+        
+        # Xử lý phản hồi trực tiếp
+        updated_state = await system.process_human_feedback(test_state)
+        
+        print("\nTrạng thái sau khi xử lý phản hồi:")
+        for file, info in updated_state["classification_results"].items():
+            print(f"- {file}: {info['label']} ({info.get('confidence', 1.0):.0%} tin cậy)")
+        
+        if "chain_of_thought" in updated_state:
+            print("\nChain of thought:")
+            for thought in updated_state["chain_of_thought"]:
+                print(f"- {thought}")
+                
+        # Kiểm tra worker_router
+        print("\n=== Test worker_router ===\n")
+        route = await system.worker_router(updated_state)
+        print(f"Route từ worker_router: {route}")
+        
+        print("\n=== Test hoàn thành ===")
+
+    asyncio.run(test_feedback_detection())  # Chạy test phát hiện feedback
+    #

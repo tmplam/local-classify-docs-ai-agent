@@ -1,15 +1,42 @@
 {
-    
     "special_files": {
-        "marketing2024.pdf": ["admin", "hr"],
-        "plan2024.pdf": ["admin", "hr"],
-        "plan2023.pdf": ["admin", "hr"],
-        "HumanResource2024.pdf": ["admin", "hr"],
-        "plan2024.docx": ["admin", "hr"],
-        "finance2023.pdf": ["admin", "hr"],
-        "finance2024.pdf": ["admin", "hr"],
-        "employee.pdf": ["admin", "hr"],
-        "Admin.docx": ["admin"],
-        "HR.docx": ["hr"]
+        "marketing2024.pdf": [
+            "admin",
+            "hr"
+        ],
+        "plan2024.pdf": [
+            "admin",
+            "hr"
+        ],
+        "plan2023.pdf": [
+            "admin",
+            "hr"
+        ],
+        "HumanResource2024.pdf": [
+            "admin",
+            "hr"
+        ],
+        "plan2024.docx": [
+            "admin",
+            "hr"
+        ],
+        "finance2023.pdf": [
+            "admin",
+            "hr"
+        ],
+        "finance2024.pdf": [
+            "admin",
+            "hr"
+        ],
+        "employee.pdf": [
+            "admin",
+            "hr"
+        ],
+        "Admin.pdf": [
+            "admin"
+        ],
+        "HR.docx": [
+            "hr"
+        ]
     }
 }

@@ -37,15 +37,10 @@ class RAGAgent(BaseAgent):
         self.cache_ttl = timedelta(hours=cache_ttl_hours)
         
         # Initialize Google Generative AI embeddings
-        if not google_api_key:
-            # Try to get from environment variable
-            google_api_key = os.getenv('GOOGLE_API_KEY')
-            if not google_api_key:
-                raise ValueError("Google API key is required. Set GOOGLE_API_KEY environment variable or pass google_api_key parameter.")
         
         self.embeddings = GoogleGenerativeAIEmbeddings(
             model="models/embedding-001",
-            google_api_key=google_api_key
+            google_api_key="AIzaSyBkEGbl-q-PxLlhlPozQInKiE1xjcj5h-w"
         )
         
         self.vector_store = None

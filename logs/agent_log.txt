@@ -1,0 +1,123 @@
+=== Log started at 2025-07-12 14:08:56 ===
+
+2025-07-12 14:09:56 - INFO - Building new RAG index with Google embeddings from C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data...
+2025-07-12 14:09:56 - INFO - Found 3 files to process
+2025-07-12 14:09:56 - INFO - Using sequential processing...
+2025-07-12 14:09:56 - INFO - Processing: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\Admin.pdf
+2025-07-12 14:09:56 - INFO - Processing: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\finance2023.pdf
+2025-07-12 14:09:56 - INFO - Processing: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\finance2024.pdf
+2025-07-12 14:09:56 - INFO - Successfully processed 3 files, 0 files had errors
+2025-07-12 14:09:56 - INFO - Total documents to index: 3
+2025-07-12 14:09:56 - INFO - Split into 4 chunks
+2025-07-12 14:09:56 - INFO - Creating embeddings with Google Generative AI...
+2025-07-12 14:09:58 - INFO - RAG index built successfully with Google embeddings - 4 chunks
+2025-07-12 14:09:58 - INFO - Multi-agent graph built successfully with reflection agent
+2025-07-12 14:09:59 - INFO - Đã tạo biểu đồ LangGraph tại: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\graphs\multiagent.png
+2025-07-12 14:10:04 - INFO - 🔍 [RUN] Kết quả kiểm tra feedback từ human_feedback_agent: False
+2025-07-12 14:10:04 - INFO - Phát hiện tìm kiếm theo tên file: tìm file có tên admin, sau đó lưu metadata
+2025-07-12 14:10:05 - INFO - Kế hoạch agent dựa trên LLM: ['filesystem', 'metadata', 'text_extraction', 'file_classification']
+2025-07-12 14:10:05 - INFO - Kế hoạch agent ban đầu: ['filesystem', 'metadata', 'text_extraction', 'file_classification']
+2025-07-12 14:10:05 - INFO - Validating agent sequence: ['filesystem', 'metadata', 'text_extraction', 'file_classification']
+2025-07-12 14:10:05 - INFO - Phát hiện metadata agent trong kế hoạch, kiểm tra thứ tự
+2025-07-12 14:10:05 - INFO - Sử dụng filesystem làm agent tìm kiếm trong workflow metadata
+2025-07-12 14:10:05 - INFO - Đã điều chỉnh thứ tự agent: ['filesystem', 'metadata', 'text_extraction', 'file_classification'] -> ['filesystem', 'text_extraction', 'file_classification', 'metadata']
+2025-07-12 14:10:05 - INFO - Kế hoạch agent sau khi kiểm tra: ['filesystem', 'text_extraction', 'file_classification', 'metadata']
+2025-07-12 14:10:05 - INFO - Running agent: filesystem (Thứ tự thực thi: ['filesystem'])
+2025-07-12 14:10:05 - INFO - Running FilesystemAgent with query: Tìm file có tên Admin, sau đó lưu metadata
+2025-07-12 14:10:05 - INFO - Waiting for FilesystemAgent to complete...
+2025-07-12 14:10:07 - INFO - FilesystemAgent completed
+2025-07-12 14:10:07 - INFO - FilesystemAgent response: 🗂️ 
+
+Bạn có muốn tôi tiếp tục không?
+2025-07-12 14:10:08 - INFO - Running agent: text_extraction (Thứ tự thực thi: ['filesystem', 'text_extraction'])
+2025-07-12 14:10:08 - INFO - Checking message for file paths: 🗂️ 
+
+Bạn có muốn tôi tiếp tục không?...
+2025-07-12 14:10:08 - INFO - Found agent message with non-standard format
+2025-07-12 14:10:08 - INFO - Checking message for file paths: Kế hoạch của tôi là: Đầu tiên, sử dụng `filesystem` agent để tìm file có tên "Admin". Sau khi tìm th...
+2025-07-12 14:10:08 - INFO - Found agent message with non-standard format
+2025-07-12 14:10:08 - INFO - WARNING: No file paths found! Running TextExtractionAgent with original query: Tìm file có tên Admin, sau đó lưu metadata
+2025-07-12 14:10:08 - INFO - Waiting for TextExtractionAgent to complete...
+2025-07-12 14:10:11 - INFO - TextExtractionAgent completed
+2025-07-12 14:10:11 - INFO - Raw TextExtractionAgent response: {'response_type': 'text', 'is_task_complete': False, 'require_user_input': True, 'content': 'Tìm file có tên Admin, sau đó lưu metadata'}
+2025-07-12 14:10:11 - INFO - Extracted content from response dict with key 'content': Tìm file có tên Admin, sau đó lưu metadata...
+2025-07-12 14:10:11 - INFO - TextExtractionAgent response: 📝 Tìm file có tên Admin, sau đó lưu metadata...
+2025-07-12 14:10:11 - INFO - Analyzing response to suggest next agent...
+2025-07-12 14:10:11 - INFO - No additional agent suggested or already in use
+2025-07-12 14:10:11 - INFO - Running agent: file_classification (Thứ tự thực thi: ['filesystem', 'text_extraction', 'file_classification'])
+2025-07-12 14:10:11 - INFO - No content or file paths found. Using original query: Tìm file có tên Admin, sau đó lưu metadata
+2025-07-12 14:10:11 - INFO - Running file classification agent for files without stored classifications
+2025-07-12 14:10:11 - INFO - All files have stored classifications, skipping classification agent
+2025-07-12 14:10:11 - INFO - Skipping FileClassificationAgent as all files have stored classifications
+2025-07-12 14:10:11 - INFO - Using only stored classifications
+2025-07-12 14:10:11 - INFO - Converted response to string: None
+2025-07-12 14:10:11 - INFO - Final classification response: 🏷️ Không có kết quả phân loại
+2025-07-12 14:10:11 - INFO - Final classification labels stored in state: {}
+2025-07-12 14:10:11 - INFO - Analyzing response to suggest next agent...
+2025-07-12 14:10:11 - INFO - No additional agent suggested or already in use
+2025-07-12 14:10:11 - INFO - Running agent: metadata (Thứ tự thực thi: ['filesystem', 'text_extraction', 'file_classification', 'metadata'])
+2025-07-12 14:10:11 - INFO - Running MetadataAgent with query: Tìm file có tên Admin, sau đó lưu metadata
+2025-07-12 14:10:11 - INFO - Found file classification agent message
+2025-07-12 14:10:11 - INFO - Analyzing classification content: 🏷️ Không có kết quả phân loại
+2025-07-12 14:10:11 - INFO - Passing classification_labels to metadata agent: {}
+2025-07-12 14:10:11 - INFO - Using placeholder content: File: unknown_file (no content extracted)
+2025-07-12 14:10:11 - INFO - Metadata parameters: {'classification_labels': {}, 'content': 'File: unknown_file (no content extracted)'}
+2025-07-12 14:10:11 - INFO - Enhanced metadata query: Tôi cần tạo và lưu metadata với các thông tin sau:
+
+
+NỘI DUNG (XEM TRƯỚC 41/41 ký tự):
+
+================================================================================
+File: unknown_file (no content extracted)
+... [NỘI DUNG ĐẦY ĐỦ ĐƯỢC CUNG CẤP Ở PHẦN DƯỚI]
+=========================================...
+2025-07-12 14:10:11 - INFO - Initializing MCP connection...
+2025-07-12 14:10:12 - INFO - Preparing to invoke MetadataAgent with the following parameters:
+2025-07-12 14:10:12 - INFO - - File: N/A
+2025-07-12 14:10:12 - INFO - - Path: N/A
+2025-07-12 14:10:12 - INFO - - Label: N/A
+2025-07-12 14:10:12 - INFO - - Content length: 41 characters
+2025-07-12 14:10:12 - INFO - Invoking MetadataAgent...
+2025-07-12 14:10:12 - INFO - Adding classification_labels from state: {}
+2025-07-12 14:10:12 - INFO - Final metadata_for_agent: {'file_name': None, 'file_path': None, 'label': None, 'content': 'File: unknown_file (no content extracted)', 'classification_labels': {}}
+2025-07-12 14:10:19 - INFO - MetadataAgent completed successfully
+2025-07-12 14:10:19 - INFO - No response content from MetadataAgent
+2025-07-12 14:10:19 - INFO - MetadataAgent response: 📋 Tôi đã xử lý metadata nhưng không có kết quả đáng chú ý....
+2025-07-12 14:10:19 - WARNING - No metadata ID to add to state
+2025-07-12 14:10:19 - INFO - Running reflection agent for final response...
+2025-07-12 14:10:19 - INFO - Running ReflectionAgent...
+2025-07-12 14:10:19 - INFO - Found extracted content in agent_results: 42 characters
+2025-07-12 14:10:20 - INFO - ReflectionAgent debug - Final file count for response: 0, detailed_files: 0
+2025-07-12 14:10:20 - INFO - Reflection response generated: Chào bạn, rất tiếc là mình không tìm thấy file nào có tên "Admin". Mình đã lưu metadata cho kết quả tìm kiếm này rồi nhé. Bạn có muốn thử với từ khóa khác không?
+2025-07-12 14:10:20 - INFO - ReflectionAgent completed: Chào bạn, rất tiếc là mình không tìm thấy file nào có tên "Admin". Mình đã lưu metadata cho kết quả tìm kiếm này rồi nhé. Bạn có muốn thử với từ khóa khác không?
+2025-07-12 14:10:20 - INFO - Used tools: ['filesystem', 'text_extraction', 'file_classification', 'metadata', 'reflection']
+2025-07-12 14:11:19 - INFO - 🔍 [RUN] Kết quả kiểm tra feedback từ human_feedback_agent: False
+2025-07-12 14:11:19 - INFO - Phát hiện tìm kiếm theo nội dung: tìm file có tên admin, sau đó phân loại nội dung
+2025-07-12 14:11:20 - INFO - Kế hoạch agent dựa trên LLM: ['filesystem', 'text_extraction', 'file_classification']
+2025-07-12 14:11:20 - INFO - Kế hoạch agent ban đầu: ['filesystem', 'text_extraction', 'file_classification']
+2025-07-12 14:11:20 - INFO - Validating agent sequence: ['filesystem', 'text_extraction', 'file_classification']
+2025-07-12 14:11:20 - INFO - Kế hoạch agent sau khi kiểm tra: ['filesystem', 'text_extraction', 'file_classification']
+2025-07-12 14:11:20 - INFO - Running agent: filesystem (Thứ tự thực thi: ['filesystem'])
+2025-07-12 14:11:20 - INFO - Running FilesystemAgent with query: Tìm file có tên Admin, sau đó phân loại nội dung
+2025-07-12 14:11:20 - INFO - Waiting for FilesystemAgent to complete...
+2025-07-12 14:11:30 - INFO - FilesystemAgent completed
+2025-07-12 14:11:30 - INFO - FilesystemAgent response: 🗂️ Tôi đã tìm thấy file: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\Admin.pdf
+2025-07-12 14:11:31 - INFO - Running agent: text_extraction (Thứ tự thực thi: ['filesystem', 'text_extraction'])
+2025-07-12 14:11:31 - INFO - Checking message for file paths: 🗂️ Tôi đã tìm thấy file: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\Admin.pdf...
+2025-07-12 14:11:31 - INFO - Found agent message with standard format for single file
+2025-07-12 14:11:31 - INFO - Extracted full file path: C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\Admin.pdf
+2025-07-12 14:11:31 - WARNING - Access denied for file 'C:\Users\dhuu3\Desktop\local-classify-docs-ai-agent\data\Admin.pdf': Bạn không có quyền truy cập file đặc biệt: Admin.pdf. Cần vai trò: admin
+2025-07-12 14:11:31 - WARNING - Access denied to all files
+2025-07-12 14:11:31 - INFO - Running agent: file_classification (Thứ tự thực thi: ['filesystem', 'text_extraction', 'file_classification'])
+2025-07-12 14:11:31 - ERROR - Error running file classification agent: cannot access local variable 're' where it is not associated with a value
+2025-07-12 14:11:31 - INFO - Running reflection agent for final response...
+2025-07-12 14:11:31 - INFO - Running ReflectionAgent...
+2025-07-12 14:11:31 - INFO - ReflectionAgent debug - State keys: ['messages', 'current_agents', 'task_complete', 'require_user_input', 'feedback_on_work', 'success_criteria_met', 'completed', 'used_tools', 'chain_of_thought', 'agent_results', 'original_query', 'user_role', 'agent_execution_order']
+2025-07-12 14:11:31 - INFO - ReflectionAgent debug - Agent results keys: ['filesystem']
+2025-07-12 14:11:31 - INFO - ReflectionAgent debug - Actual file count: 1, unique_files: ['C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data\\Admin.pdf']
+2025-07-12 14:11:31 - INFO - ReflectionAgent: Đã tìm thấy 1 files: Admin.pdf...
+2025-07-12 14:11:31 - INFO - Using file_count from state: 1
+2025-07-12 14:11:32 - INFO - ReflectionAgent debug - Final file count for response: 1, detailed_files: 1
+2025-07-12 14:11:32 - INFO - Reflection response generated: Chào bạn, mình đã tìm thấy một file tên là Admin.pdf. Mình sẽ tiến hành phân loại nội dung của file này nhé.
+2025-07-12 14:11:32 - INFO - ReflectionAgent completed: Chào bạn, mình đã tìm thấy một file tên là Admin.pdf. Mình sẽ tiến hành phân loại nội dung của file này nhé.
+2025-07-12 14:11:32 - INFO - Used tools: ['filesystem', 'reflection']

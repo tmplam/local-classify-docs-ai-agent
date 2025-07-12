@@ -1,9 +1,9 @@
 {
-  "created_at": "2025-07-10T03:01:08.917780",
+  "created_at": "2025-07-12T14:09:58.422785",
   "data_dir": "C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data",
-  "data_dir_mtime": 1752091199.2411995,
+  "data_dir_mtime": 1752304013.54388,
   "num_documents": 3,
-  "num_chunks": 3,
+  "num_chunks": 4,
   "embeddings_model": "google-embedding-001",
   "embeddings_provider": "google_generative_ai"
 }
