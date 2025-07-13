@@ -1,15 +1,15 @@
 {
     "admin": {
         "username": "admin",
-        "password": "ea71040371f32c5c47b7ce2d0ae3e126a65ec9ecffa9fbe2cc9a2a2758d5769a:94df58c77d9cdc895b27b403b22cc15090f6d05da64a82ee917993de723fcc86",
+        "password": "0ed89e2491cdbd0411068c65f60dad32e37bc15eff751da8ccba6fb58bc6c658:fce4c102c158b3dfc33a874d15d8dfffdea63cc0fe52797ba8366f5c2c73be80",
         "role": "admin",
         "created_at": 1751509069.8776495,
         "last_login": 1751518522.5113215
     },
-    "hr": {
-        "username": "hr",
+    "ketoan": {
+        "username": "ketoan",
         "password": "0ed89e2491cdbd0411068c65f60dad32e37bc15eff751da8ccba6fb58bc6c658:fce4c102c158b3dfc33a874d15d8dfffdea63cc0fe52797ba8366f5c2c73be80",
-        "role": "hr",
+        "role": "accounting",
         "created_at": 1751509069.8776495
     }
 }

@@ -21,6 +21,11 @@ import hashlib
 from utils.logger import log
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from dotenv import load_dotenv
+import os
+from dotenv import find_dotenv
+load_dotenv(find_dotenv(), override=True)
+
 
 class RAGAgent(BaseAgent):
     """Enhanced RAG Agent for content-based file search with Google Generative AI embeddings."""
@@ -40,7 +45,7 @@ class RAGAgent(BaseAgent):
         
         self.embeddings = GoogleGenerativeAIEmbeddings(
             model="models/embedding-001",
-            google_api_key="AIzaSyBkEGbl-q-PxLlhlPozQInKiE1xjcj5h-w"
+            google_api_key= os.getenv("GOOGLE_API_KEY")
         )
         
         self.vector_store = None

@@ -1,0 +1,60 @@
+{
+  "timestamp": "2025-07-12T16:51:53.539270",
+  "session_id": "request_1752313896_35c802a5",
+  "extracted_data": {
+    "C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data\\Doanhthu2024.pdf": {
+      "\"doanh thu\",": {},
+      "\"tăng trưởng doanh thu\",": {},
+      "\"doanh thu thuần\",": {},
+      "\"doanh thu gộp\"": {},
+      "\"tăng trưởng\",": {},
+      "\"xu hướng doanh thu\"": {}
+    },
+    "C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data\\Doanhthu2023.pdf": {
+      "\"doanh thu\",": {},
+      "\"tăng trưởng doanh thu\",": {},
+      "\"doanh thu thuần\",": {},
+      "\"doanh thu gộp\"": {},
+      "\"tăng trưởng\",": {},
+      "\"xu hướng doanh thu\"": {}
+    }
+  },
+  "comparison": {
+    "\"doanh thu\",": {
+      "status": "Không đủ dữ liệu để so sánh",
+      "data_points": 0
+    },
+    "\"tăng trưởng doanh thu\",": {
+      "status": "Không đủ dữ liệu để so sánh",
+      "data_points": 0
+    },
+    "\"doanh thu thuần\",": {
+      "status": "Không đủ dữ liệu để so sánh",
+      "data_points": 0
+    },
+    "\"doanh thu gộp\"": {
+      "status": "Không đủ dữ liệu để so sánh",
+      "data_points": 0
+    },
+    "\"tăng trưởng\",": {
+      "status": "Không đủ dữ liệu để so sánh",
+      "data_points": 0
+    },
+    "\"xu hướng doanh thu\"": {
+      "status": "Không đủ dữ liệu để so sánh",
+      "data_points": 0
+    }
+  },
+  "summary_stats": {},
+  "insights": [],
+  "processing_log": [
+    "Phân tích file: C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data\\Doanhthu2024.pdf",
+    "  - Tìm thấy 1 bảng",
+    "Phân tích file: C:\\Users\\dhuu3\\Desktop\\local-classify-docs-ai-agent\\data\\Doanhthu2023.pdf",
+    "  - Tìm thấy 1 bảng",
+    "Hoàn thành so sánh dữ liệu cho 6 chỉ số",
+    "Tạo báo cáo thành công"
+  ],
+  "data_quality": {},
+  "table_data": {}
+}
